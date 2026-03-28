@@ -455,10 +455,10 @@ const Varejo = {
     },
 
     searchProduct: async (term) => {
-        // 1. Busca Exata (Código de Barras, SKU, Código Interno)
+        // 1. Busca Exata (Código de Barras ou Código Interno)
         // Evitamos buscar pelo campo ID (`id.eq.${term}`) com strings pois causa erro de cast no banco
         const { data: exact, error } = await _sb.from('products').select('*').eq('store_id', App.state.storeId)
-            .or(`codigo_barras.eq.${term},codigo_cardapio.eq.${term},sku.eq.${term}`).limit(1);
+            .or(`codigo_barras.eq.${term},codigo_cardapio.eq.${term}`).limit(1);
 
         if (error) console.error("Busca exata erro:", error);
 
@@ -471,8 +471,10 @@ const Varejo = {
         if (term.length >= 8) {
             // 2.1 Tenta cortando o último dígito (erro de dígito verificador)
             let prefix = term.substring(0, term.length - 1);
-            let { data: similar } = await _sb.from('products').select('*').eq('store_id', App.state.storeId)
-                .or(`codigo_barras.ilike.${prefix}%,sku.ilike.${prefix}%`).limit(1);
+            let { data: similar, error: err1 } = await _sb.from('products').select('*').eq('store_id', App.state.storeId)
+                .or(`codigo_barras.like.${prefix}%`).limit(1);
+
+            if (err1) console.error("Busca prefix erro:", err1);
 
             if (similar && similar.length > 0) {
                 Varejo.addItem(similar[0], Varejo.state.pendingQty);
@@ -481,8 +483,10 @@ const Varejo = {
             
             // 2.2 Tenta cortando os 4 últimos dígitos (Regra do Lote) - extremamente maleável
             prefix = term.substring(0, term.length - 4);
-            let { data: loteSimilar } = await _sb.from('products').select('*').eq('store_id', App.state.storeId)
-                .or(`codigo_barras.ilike.${prefix}%,sku.ilike.${prefix}%`).limit(1);
+            let { data: loteSimilar, error: err2 } = await _sb.from('products').select('*').eq('store_id', App.state.storeId)
+                .or(`codigo_barras.like.${prefix}%`).limit(1);
+
+            if (err2) console.error("Busca lote erro:", err2);
 
             if (loteSimilar && loteSimilar.length > 0) {
                 Varejo.addItem(loteSimilar[0], Varejo.state.pendingQty);
