@@ -29,6 +29,16 @@ const Varejo = {
             try { await Caixa.checkSession(); } catch(e) { console.warn("Erro ao checar sessão:", e); }
         }
 
+        const saved = localStorage.getItem('naxio_pos_recovery');
+        if (saved) {
+            try {
+                Varejo.state.tabs = JSON.parse(saved);
+                Varejo.state.ticket = [...Varejo.state.tabs[0].ticket];
+                Varejo.state.currentCliente = Varejo.state.tabs[0].cliente;
+                Varejo.state.totalTicket = Varejo.state.tabs[0].total;
+            } catch(e) { console.warn("Erro ao recuperar carrinho:", e); }
+        }
+
         Varejo.injectStyles();
         Varejo.injectHTML();
         Varejo.startClock();
@@ -124,10 +134,10 @@ const Varejo = {
             .main-content { gap: 15px; display: flex; flex-direction: column; grid-row: 2 / 3; }
             .search-wrapper { padding: 20px 20px 0 20px; }
             .search-input-group { position: relative; height: 65px; margin-bottom: 5px; }
-            .search-input-group i { position: absolute; left: 22px; top: 50%; transform: translateY(-50%); font-size: 1.5rem; color: var(--pos-accent); z-index: 10; pointer-events: none; }
+            .search-input-group i { position: absolute; right: 25px; top: 50%; transform: translateY(-50%); font-size: 1.5rem; color: var(--pos-accent); z-index: 10; pointer-events: none; }
             .search-input-group input {
                 width: 100%; height: 100%; background: rgba(0,0,0,0.3); border: 2px solid var(--pos-border);
-                border-radius: 20px; padding: 0 30px 0 65px; color: #fff; font-size: 1.2rem; transition: 0.3s;
+                border-radius: 20px; padding: 0 65px 0 25px !important; color: #fff; font-size: 1.2rem; transition: 0.3s;
                 font-family: 'Outfit', sans-serif; position: relative;
             }
             .search-input-group input:focus { border-color: var(--pos-accent); box-shadow: 0 0 20px rgba(59, 130, 246, 0.15); outline: none; }
@@ -409,6 +419,17 @@ const Varejo = {
         Varejo.state.totalTicket = total;
         if (document.getElementById('pos-subtotal')) document.getElementById('pos-subtotal').innerText = `${total.toFixed(2)}`;
         if (document.getElementById('pos-total-display')) document.getElementById('pos-total-display').innerText = `${total.toFixed(2)}`;
+        if (typeof Varejo.saveRecoveryState === 'function') Varejo.saveRecoveryState();
+    },
+
+    saveRecoveryState: () => {
+        const t = Varejo.state.tabs[Varejo.state.currentTabIndex];
+        if (t) {
+            t.ticket = [...Varejo.state.ticket];
+            t.cliente = Varejo.state.currentCliente;
+            t.total = Varejo.state.totalTicket;
+        }
+        localStorage.setItem('naxio_pos_recovery', JSON.stringify(Varejo.state.tabs));
     },
 
     renderTicket: () => {
@@ -718,6 +739,7 @@ const Varejo = {
         const s = document.getElementById('pos-main-customer-search-area');
         if (c) { p.style.display = 'block'; s.style.display = 'none'; document.getElementById('pos-main-customer-name').innerText = c.nome_completo; }
         else { p.style.display = 'none'; s.style.display = 'block'; }
+        if (typeof Varejo.saveRecoveryState === 'function') Varejo.saveRecoveryState();
     },
 
     loadCategories: async () => {
