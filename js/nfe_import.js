@@ -159,22 +159,30 @@ if (typeof App !== 'undefined') {
                         const codigo = m[1];
                         let rawNome = m[2];
 
-                        // Limpeza profunda de resíduos de página e tabelas
+                        // Limpeza profunda de resíduos de página, tabelas, blocos de impostos e EANs intrusos
                         let nome = rawNome
+                            .replace(/TRIBUT[ÁA]RIO CNPJ\s*\/\s*CPF/gi, "") // Limpa título lixo
+                            .replace(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/g, "") // Limpa CNPJ formatado
+                            .replace(/\d{3}\.\d{3}\.\d{3}-\d{2}/g, "") // Limpa CPF formatado
+                            .replace(/\b\d{12,14}\b/g, "") // Limpa código de barras EAN/GTIN perdido no meio do texto
                             .replace(/\(Codigo Barras:.*?\)/gi, "")
-                            .replace(/DADOS DOS PRODUTOS[\s\S]+?ALÍQ\. %/gi, "")
-                            .replace(/Página \d+ de \d+/gi, "")
-                            .replace(/Documento Auxiliar[\s\S]+?Série 001/gi, "")
-                            .replace(/Nº [\d.]+ Série [\d.]+/gi, "")
+                            .replace(/DADOS DOS PRODUTOS[\s\S]+?AL[ÍI]Q\. %/gi, "")
+                            .replace(/P[áa]gina \d+ de \d+/gi, "")
+                            .replace(/Documento Auxiliar[\s\S]+?S[ée]rie 001/gi, "")
+                            .replace(/N[º°] [\d.]+ S[ée]rie [\d.]+/gi, "")
                             .replace(/NUMERAÇÃO|PESO BRUTO|PESO LÍQUIDO/gi, "") // Limpa metadados de transporte
+                            // Limpeza fina (Remove pontuações sobrando que isolam texto)
                             .replace(/\n/g, " ")
                             .replace(/\s+/g, " ")
+                            .replace(/^[\s\.\,\-\_\/]+/g, "") // Limpa lixo do começo do nome que o PDF pode aglutinar
                             .trim();
                         
-                        // Se o nome ainda for muito grande ou tiver resíduos de colunas
-                        if (nome.length > 150) {
+                        // Garante limite absoluto de segurança para o BD
+                        if (nome.length > 100) {
+                            // Pega as últimas palavras assumindo que o começo possa ser lixo de quebras
                             const words = nome.split(" ");
-                            if (words.length > 20) nome = words.slice(-15).join(" ");
+                            if (words.length > 10) nome = words.slice(-10).join(" ");
+                            nome = nome.substring(0, 100).trim();
                         }
 
                         const ncm = m[3];
