@@ -474,7 +474,7 @@ const RelatoriosEnterprise = {
                         <i class="ri-list-check"></i> Itens
                     </button>
                     <button class="btn btn-sm" style="padding:4px 10px; font-size:0.7rem; background:rgba(239,68,68,0.15); color:#f87171; border:1px solid rgba(239,68,68,0.3); border-radius:6px;" 
-                        onclick="if(confirm('Deseja estornar esta venda?')) { if(window.App?.autopecas?.cancelSale) App.autopecas.cancelSale('${v.id}'); else window._sb.from('orders').update({status:'cancelado'}).eq('id','${v.id}').then(()=>App.utils.toast('Estornada!','success')); this.closest('tr').style.opacity='0.3'; this.disabled=true; }">
+                        onclick="RelatoriosEnterprise.cancelSale('${v.id}'); this.closest('tr').style.opacity='0.3'; this.disabled=true;">
                         <i class="ri-close-circle-line"></i> Estornar
                     </button>
                 </td>
@@ -1526,8 +1526,8 @@ const PainelRelatorios = {
                     <div style="text-align:right; min-width:130px;">
                         <div style="font-weight:bold; margin-bottom:4px;">R$ ${val.toFixed(2)}</div>
                         ${!isFinal ? `
-                            <button class="btn btn-sm btn-danger" style="width:auto; padding:2px 6px; font-size:0.7rem; margin-right:4px;" onclick="App.autopecas.cancelSale('${v.id}'); document.getElementById('sales-history-modal')?.remove();">Cancelar</button>
-                            <button class="btn btn-sm btn-warning" style="width:auto; padding:2px 6px; font-size:0.7rem;" onclick="App.autopecas.returnSale('${v.id}'); document.getElementById('sales-history-modal')?.remove();">Devolver</button>
+                            <button class="btn btn-sm btn-danger" style="width:auto; padding:2px 6px; font-size:0.7rem; margin-right:4px;" onclick="RelatoriosEnterprise.cancelSale('${v.id}'); document.getElementById('sales-history-modal')?.remove();">Cancelar</button>
+                            <button class="btn btn-sm btn-warning" style="width:auto; padding:2px 6px; font-size:0.7rem;" onclick="RelatoriosEnterprise.returnSale('${v.id}'); document.getElementById('sales-history-modal')?.remove();">Devolver</button>
                         ` : ''}
                     </div>
                 </div>`;
@@ -1598,6 +1598,120 @@ const PainelRelatorios = {
             </div>
         </div>`;
         document.body.insertAdjacentHTML('beforeend', html);
+    },
+
+    // 🔄 CANCELAMENTO / DEVOLUÇÃO DE VENDAS COM REPOSIÇÃO (Independente de módulo externo)
+    cancelSale: async (orderId) => {
+        const confirmed = await NaxioUI.confirm(
+            'Cancelar Venda',
+            'Deseja cancelar esta venda? O estoque será restaurado automaticamente.',
+            'Confirmar Cancelamento',
+            'Voltar'
+        );
+        if (!confirmed) return;
+
+        const motivo = await NaxioUI.prompt('Motivo', 'Motivo do cancelamento:', '', 'Ex: Erro no lançamento');
+
+        const { data: order } = await _sb.from('orders').select('*').eq('id', orderId).single();
+        if (!order) return;
+
+        let itensVenda = [];
+        try {
+            if (order.observacao && order.observacao.startsWith('{')) {
+                const obsObj = JSON.parse(order.observacao);
+                if (obsObj.itens) itensVenda = obsObj.itens;
+                if (obsObj.items) itensVenda = obsObj.items;
+            }
+        } catch(e){}
+        
+        // Fallback para venda antiga (1 item)
+        if (itensVenda.length === 0 && order.product_id) {
+            itensVenda.push({ id: order.product_id, qtd: (order.quantidade || 1) });
+        }
+
+        // Restaura estoque de todos os itens da venda
+        if (itensVenda.length > 0) {
+            for (const item of itensVenda) {
+                const pId = item.id || item.product_id;
+                const pQtd = parseFloat(item.qtd) || parseFloat(item.quantidade) || 1;
+                if (pId) {
+                    const { data: prod } = await _sb.from('products').select('estoque').eq('id', pId).single();
+                    if (prod) {
+                        await _sb.from('products').update({ estoque: (prod.estoque || 0) + pQtd }).eq('id', pId);
+                    }
+                }
+            }
+        }
+
+        await _sb.from('orders').update({
+            status: 'cancelado',
+            observacoes: `[CANCELADO] ${motivo || 'Sem motivo'} em ${new Date().toLocaleString('pt-BR')}`
+        }).eq('id', orderId);
+
+        App.utils.toast("Venda cancelada!", "success");
+
+        if (window.Caixa && window.Caixa.calcTotals) {
+            await window.Caixa.calcTotals();
+        }
+
+        if (window.App && App.store && App.store.loadMyProducts) App.store.loadMyProducts();
+    },
+
+    returnSale: async (orderId) => {
+        const motivo = await NaxioUI.prompt('Devolução', 'Motivo da devolução:', '', 'Ex: Defeito...');
+        if (!motivo) return;
+
+        const { data: order } = await _sb.from('orders').select('*').eq('id', orderId).single();
+        if (!order) return;
+
+        let itensVenda = [];
+        try {
+            if (order.observacao && order.observacao.startsWith('{')) {
+                const obsObj = JSON.parse(order.observacao);
+                if (obsObj.itens) itensVenda = obsObj.itens;
+                if (obsObj.items) itensVenda = obsObj.items;
+            }
+        } catch(e){}
+        
+        if (itensVenda.length === 0 && order.product_id) {
+            itensVenda.push({ id: order.product_id, qtd: (order.quantidade || 1) });
+        }
+
+        if (itensVenda.length > 0) {
+            for (const item of itensVenda) {
+                const pId = item.id || item.product_id;
+                const pQtd = parseFloat(item.qtd) || parseFloat(item.quantidade) || 1;
+                if (pId) {
+                    const { data: prod } = await _sb.from('products').select('estoque').eq('id', pId).single();
+                    if (prod) {
+                        await _sb.from('products').update({ estoque: (prod.estoque || 0) + pQtd }).eq('id', pId);
+                    }
+                }
+            }
+        }
+
+        await _sb.from('orders').update({
+            status: 'devolvido',
+            observacoes: `[DEVOLUÇÃO] ${motivo} em ${new Date().toLocaleString('pt-BR')}`
+        }).eq('id', orderId);
+
+        await _sb.from('financial_records').insert({
+            store_id: App.state.storeId,
+            tipo: 'despesa',
+            categoria: 'devolucao',
+            descricao: `Devolução Venda: ${motivo.substring(0,25)}`,
+            valor: -(parseFloat(order.total_pago) || 0),
+            status: 'pago',
+            data_pagamento: new Date()
+        });
+
+        App.utils.toast("Devolução registrada com sucesso!", "success");
+
+        if (window.Caixa && window.Caixa.calcTotals) {
+            await window.Caixa.calcTotals();
+        }
+
+        if (window.App && App.store && App.store.loadMyProducts) App.store.loadMyProducts();
     }
 };
 
