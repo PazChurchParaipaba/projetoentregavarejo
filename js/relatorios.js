@@ -1604,7 +1604,7 @@ const PainelRelatorios = {
 
 // 🛑 BYPASS ANTI-CACHE DO CHROME / FUNÇÕES GLOBAIS DE ESTORNO
 window.__estornarGeral = async (orderId) => {
-    const confirmed = await window.NaxioUI.confirm(
+    const confirmed = await NaxioUI.confirm(
         'Cancelar Venda',
         'Deseja cancelar esta venda? O estoque será restaurado automaticamente.',
         'Confirmar Cancelamento',
@@ -1612,9 +1612,9 @@ window.__estornarGeral = async (orderId) => {
     );
     if (!confirmed) return;
 
-    const motivo = await window.NaxioUI.prompt('Motivo', 'Motivo do cancelamento:', '', 'Ex: Erro no lançamento');
+    const motivo = await NaxioUI.prompt('Motivo', 'Motivo do cancelamento:', '', 'Ex: Erro no lançamento');
 
-    const { data: order } = await window._sb.from('orders').select('*').eq('id', orderId).single();
+    const { data: order } = await _sb.from('orders').select('*').eq('id', orderId).single();
     if (!order) return;
 
     let itensVenda = [];
@@ -1635,32 +1635,32 @@ window.__estornarGeral = async (orderId) => {
             const pId = item.id || item.product_id;
             const pQtd = parseFloat(item.qtd) || parseFloat(item.quantidade) || 1;
             if (pId) {
-                const { data: prod } = await window._sb.from('products').select('estoque').eq('id', pId).single();
+                const { data: prod } = await _sb.from('products').select('estoque').eq('id', pId).single();
                 if (prod) {
-                    await window._sb.from('products').update({ estoque: (prod.estoque || 0) + pQtd }).eq('id', pId);
+                    await _sb.from('products').update({ estoque: (prod.estoque || 0) + pQtd }).eq('id', pId);
                 }
             }
         }
     }
 
-    await window._sb.from('orders').update({
+    await _sb.from('orders').update({
         status: 'cancelado',
         observacoes: `[CANCELADO] ${motivo || 'Sem motivo'} em ${new Date().toLocaleString('pt-BR')}`
     }).eq('id', orderId);
 
-    window.App.utils.toast("Venda cancelada!", "success");
+    App.utils.toast("Venda cancelada!", "success");
 
     if (window.Caixa && window.Caixa.calcTotals) {
         await window.Caixa.calcTotals();
     }
-    if (window.App && window.App.store && window.App.store.loadMyProducts) window.App.store.loadMyProducts();
+    if (App && App.store && App.store.loadMyProducts) App.store.loadMyProducts();
 };
 
 window.__devolverGeral = async (orderId) => {
-    const motivo = await window.NaxioUI.prompt('Devolução', 'Motivo da devolução:', '', 'Ex: Defeito...');
+    const motivo = await NaxioUI.prompt('Devolução', 'Motivo da devolução:', '', 'Ex: Defeito...');
     if (!motivo) return;
 
-    const { data: order } = await window._sb.from('orders').select('*').eq('id', orderId).single();
+    const { data: order } = await _sb.from('orders').select('*').eq('id', orderId).single();
     if (!order) return;
 
     let itensVenda = [];
@@ -1681,21 +1681,21 @@ window.__devolverGeral = async (orderId) => {
             const pId = item.id || item.product_id;
             const pQtd = parseFloat(item.qtd) || parseFloat(item.quantidade) || 1;
             if (pId) {
-                const { data: prod } = await window._sb.from('products').select('estoque').eq('id', pId).single();
+                const { data: prod } = await _sb.from('products').select('estoque').eq('id', pId).single();
                 if (prod) {
-                    await window._sb.from('products').update({ estoque: (prod.estoque || 0) + pQtd }).eq('id', pId);
+                    await _sb.from('products').update({ estoque: (prod.estoque || 0) + pQtd }).eq('id', pId);
                 }
             }
         }
     }
 
-    await window._sb.from('orders').update({
+    await _sb.from('orders').update({
         status: 'devolvido',
         observacoes: `[DEVOLUÇÃO] ${motivo} em ${new Date().toLocaleString('pt-BR')}`
     }).eq('id', orderId);
 
-    await window._sb.from('financial_records').insert({
-        store_id: window.App.state.storeId,
+    await _sb.from('financial_records').insert({
+        store_id: App.state.storeId,
         tipo: 'despesa',
         categoria: 'devolucao',
         descricao: `Devolução Venda: ${motivo.substring(0,25)}`,
@@ -1704,12 +1704,12 @@ window.__devolverGeral = async (orderId) => {
         data_pagamento: new Date()
     });
 
-    window.App.utils.toast("Devolução registrada com sucesso!", "success");
+    App.utils.toast("Devolução registrada com sucesso!", "success");
 
     if (window.Caixa && window.Caixa.calcTotals) {
         await window.Caixa.calcTotals();
     }
-    if (window.App && window.App.store && window.App.store.loadMyProducts) window.App.store.loadMyProducts();
+    if (App && App.store && App.store.loadMyProducts) App.store.loadMyProducts();
 };
 
 
