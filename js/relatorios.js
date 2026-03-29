@@ -1645,7 +1645,7 @@ window.__estornarGeral = async (orderId) => {
 
     await _sb.from('orders').update({
         status: 'cancelado',
-        observacoes: `[CANCELADO] ${motivo || 'Sem motivo'} em ${new Date().toLocaleString('pt-BR')}`
+        observacao: `[CANCELADO] ${motivo || 'Sem motivo'} em ${new Date().toLocaleString('pt-BR')}`
     }).eq('id', orderId);
 
     App.utils.toast("Venda cancelada!", "success");
@@ -1654,6 +1654,11 @@ window.__estornarGeral = async (orderId) => {
         await window.Caixa.calcTotals();
     }
     if (App && App.store && App.store.loadMyProducts) App.store.loadMyProducts();
+    
+    // Atualiza o painel de histórico para a baixa refletir
+    if (typeof RelatoriosEnterprise !== 'undefined' && RelatoriosEnterprise.openSalesHistory) {
+        setTimeout(() => RelatoriosEnterprise.openSalesHistory(), 300);
+    }
 };
 
 window.__devolverGeral = async (orderId) => {
@@ -1691,7 +1696,7 @@ window.__devolverGeral = async (orderId) => {
 
     await _sb.from('orders').update({
         status: 'devolvido',
-        observacoes: `[DEVOLUÇÃO] ${motivo} em ${new Date().toLocaleString('pt-BR')}`
+        observacao: `[DEVOLUÇÃO] ${motivo} em ${new Date().toLocaleString('pt-BR')}`
     }).eq('id', orderId);
 
     await _sb.from('financial_records').insert({
@@ -1710,6 +1715,11 @@ window.__devolverGeral = async (orderId) => {
         await window.Caixa.calcTotals();
     }
     if (App && App.store && App.store.loadMyProducts) App.store.loadMyProducts();
+    
+    // Atualiza o painel de histórico para a baixa refletir
+    if (typeof RelatoriosEnterprise !== 'undefined' && RelatoriosEnterprise.openSalesHistory) {
+        setTimeout(() => RelatoriosEnterprise.openSalesHistory(), 300);
+    }
 };
 
 
