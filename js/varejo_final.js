@@ -788,17 +788,25 @@ const Varejo = {
             <head>
                 <style>
                     @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap');
-                    body { font-family: 'Courier Prime', monospace; padding: 20px; color: #000; font-size: 14px; line-height: 1.2; width: 300px; margin: 0 auto; }
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body { font-family: 'Courier Prime', 'Courier New', monospace; padding: 5mm; color: #000; font-size: 13px; line-height: 1.4; width: 80mm; margin: 0 auto; -webkit-print-color-adjust: exact; }
                     .center { text-align: center; }
                     .bold { font-weight: bold; }
-                    .sep { border-top: 1px dashed #000; margin: 10px 0; }
-                    .item { display: flex; justify-content: space-between; margin-bottom: 5px; }
-                    .footer { font-size: 10px; margin-top: 20px; }
-                    @media print { body { width: 100%; padding: 0; } .no-print { display: none; } }
+                    .sep { border-top: 1px dashed #000; margin: 8px 0; }
+                    .item { display: flex; justify-content: space-between; margin-bottom: 4px; }
+                    .footer { font-size: 10px; margin-top: 15px; padding-bottom: 10px; }
+                    .no-print { margin-top: 20px; text-align: center; }
+                    .no-print button { padding: 8px 15px; cursor: pointer; margin: 5px; }
+                    
+                    @page { margin: 0; size: 80mm auto; }
+                    @media print { 
+                        body { width: 100%; padding: 0; margin: 0; } 
+                        .no-print { display: none; } 
+                    }
                 </style>
             </head>
             <body>
-                <div class="center bold" style="font-size: 18px;">${storeName}</div>
+                <div class="center bold" style="font-size: 16px;">${storeName}</div>
                 <div class="center">COMPROVANTE DE VENDA</div>
                 <div class="sep"></div>
                 <div>DATA: ${date}</div>
@@ -825,14 +833,14 @@ const Varejo = {
                     Guarde este comprovante para trocas.<br>
                     Desenvolvido por NAXIO PRO
                 </div>
-                <div class="no-print center" style="margin-top: 20px;">
-                    <button onclick="window.print()" style="padding: 10px 20px; cursor: pointer;">IMPRIMIR</button>
-                    <button onclick="window.close()" style="padding: 10px 20px; cursor: pointer;">FECHAR</button>
+                <div class="no-print">
+                    <button onclick="window.print()">IMPRIMIR</button>
+                    <button onclick="window.close()">FECHAR</button>
                 </div>
                 <script>
-                    window.onload = () => { 
-                        window.print(); // Descomente para imprimir auto ao abrir
-                    };
+                    setTimeout(() => { 
+                        window.print();
+                    }, 800);
                 </script>
             </body>
             </html>
