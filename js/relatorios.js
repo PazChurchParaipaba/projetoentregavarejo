@@ -1835,3 +1835,4 @@ const ReservasPratosSystem = {
 
 // Make it global
 window.ReservasPratosSystem = ReservasPratosSystem;
+window.RelatoriosEnterprise = RelatoriosEnterprise;
