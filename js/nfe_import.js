@@ -318,27 +318,45 @@ if (typeof App !== 'undefined') {
                     return candidates.length > 0 ? candidates[0].p : null;
                 };
 
-                const stats = { m: 0, c: 0 };
+                const stats = { m: 0, c: 0, e: 0 };
                 for (let it of confirmedItems) {
                     const mt = findMatch(it);
                     if (mt) {
-                        await _sb.from('products').update({ 
-                            estoque: (mt.estoque || 0) + it.qtd, 
-                            preco_custo: it.val,
-                            preco: it.selectedSalePrice
+                        const { error } = await _sb.from('products').update({ 
+                            estoque: parseFloat((mt.estoque || 0)) + parseFloat(it.qtd), 
+                            preco_custo: parseFloat(it.val) || 0,
+                            preco: parseFloat(it.selectedSalePrice) || 0
                         }).eq('id', mt.id); 
-                        stats.m++;
+                        if (error) { console.error("NFE Update Error:", error); stats.e++; } 
+                        else stats.m++;
                     } else {
-                        await _sb.from('products').insert({
-                            store_id: App.state.storeId, nome: it.nome, sku: it.codigo, ncm: it.ncm, codigo_cardapio: it.codigo,
-                            estoque: it.qtd, preco_custo: it.val, preco: it.selectedSalePrice, categoria: 'Importados NFE', exibir_online: true, codigo_barras: it.ean || null
+                        const { error } = await _sb.from('products').insert({
+                            store_id: App.state.storeId, 
+                            nome: String(it.nome).substring(0, 150), 
+                            sku: it.codigo || null, 
+                            ncm: it.ncm || null, 
+                            codigo_cardapio: it.codigo || null,
+                            estoque: parseFloat(it.qtd) || 0, 
+                            preco_custo: parseFloat(it.val) || 0, 
+                            preco: parseFloat(it.selectedSalePrice) || 0, 
+                            categoria: 'Importados NFE', 
+                            exibir_online: true, 
+                            codigo_barras: it.ean || null
                         });
-                        stats.c++;
+                        if (error) { console.error("NFE Insert Error:", error); stats.e++; } 
+                        else stats.c++;
                     }
                 }
-                NaxioUI.alert('✅ Entrada Concluída', `Estoque e preços atualizados!\n\n🔹 Produtos Vinculados: ${stats.m}\n🔹 Novos Cadastros: ${stats.c}`, 'success');
-                document.getElementById('nfe-import-modal').remove();
-                if (App.store.loadMyProducts) App.store.loadMyProducts();
+                
+                if (stats.e > 0 && stats.c === 0 && stats.m === 0) {
+                    NaxioUI.alert('⚠️ Falha Parcial', `Encontramos ${stats.e} erro(s) ao salvar no Banco de Dados. Verifique nomes muito longos ou preenchimentos.`, 'error');
+                } else {
+                    NaxioUI.alert('✅ Entrada Processada', `Estoque e preços atualizados!\n\n🔹 Atualizados: ${stats.m}\n🔹 Novos Cadastros: ${stats.c}\n❌ Erros de salvamento: ${stats.e}`, 'success');
+                    const modalNfe = document.getElementById('nfe-import-modal');
+                    if (modalNfe) modalNfe.remove();
+                }
+                
+                if (App && App.store && App.store.loadMyProducts) window.setTimeout(() => App.store.loadMyProducts(), 500);
             },
 
             lev: (s, t) => {
