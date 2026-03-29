@@ -366,15 +366,15 @@ if (typeof App !== 'undefined') {
                         const { error } = await _sb.from('products').insert({
                             store_id: App.state.storeId, 
                             nome: cleanName, 
-                            sku: cleanSku, 
-                            ncm: cleanNcm, 
-                            codigo_cardapio: cleanSku, // Código de match
+                            ncm: cleanNcm, // Mantido e verificado como coluna real do Banco Naxio
+                            codigo_cardapio: cleanEan || cleanSku, // Salva o Código de Barras / Ref como principal
+                            cod_fabricante: cleanSku, // Mantém backup do cód fornecedor no ref
                             estoque: pQtd, 
                             preco_custo: pCusto, 
                             preco: pVenda, 
                             categoria: 'Importados NFE', 
                             exibir_online: true, 
-                            codigo_barras: cleanEan
+                            codigo_barras: cleanEan || cleanSku // Código de Barras também garantido aqui
                         });
                         if (error) { 
                             console.error("NFE Insert Error:", error); 
