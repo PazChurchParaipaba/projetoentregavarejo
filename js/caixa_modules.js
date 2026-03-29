@@ -806,18 +806,18 @@ const Caixa = {
 
             if (await NaxioUI.confirm("Imprimir Fechamento?", "O caixa foi fechado. Deseja imprimir o ticket de fechamento (térmico)?")) {
                 const content = Caixa.generateContent(resumoCompleto);
-                // Usa janela externa para evitar que o render() limpe o conteudo antes de imprimir
                 const win = window.open('', '_blank');
                 win.document.write(`
                     <html>
                     <head>
                         <title>Fechamento de Caixa</title>
                         <style>
-                            body { margin: 0; padding: 0; background: #fff; }
-                            @media print { @page { margin: 0; } }
+                            @page { margin: 0; size: 80mm auto; }
+                            body { margin: 0; padding: 0; width: 100%; max-width: 80mm; background: #fff; font-family: 'Courier Prime', 'Courier New', Courier, monospace; color: #000; }
+                            * { font-family: 'Courier Prime', 'Courier New', Courier, monospace !important; box-sizing: border-box; }
                         </style>
                     </head>
-                    <body onload="window.print(); window.close();">
+                    <body onload="setTimeout(function(){ window.print(); window.close(); }, 800);">
                         ${content}
                     </body>
                     </html>
@@ -911,63 +911,106 @@ const Caixa = {
         }
     },
 
-    // 🔥 GERAÇÃO DE CONTEÚDO DETALHADO
+    // 🔥 GERAÇÃO DE CONTEÚDO DETALHADO E BLINDADO PARA TECTOY
     generateContent: (r) => {
-        const loja = App.state.currentStore?.nome_loja || "Minha Loja";
-        const data = new Date().toLocaleString();
+        const loja = App.state.currentStore?.nome_loja || "MINHA LOJA";
+        // Convertendo strings sensíveis a problemas de conversão ESC/POS
+        const removeAccents = (str) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const lojaFormatada = removeAccents(loja).toUpperCase();
+        
+        const data = new Date().toLocaleString('pt-BR');
         const fmt = (v) => `R$ ${(v || 0).toFixed(2)}`;
-        const linha = (l, v) => `<div style="display:flex; justify-content:space-between;"><span>${l}</span><span>${fmt(v)}</span></div>`;
-        const div = `<div style="border-top:1px dashed #000; margin:5px 0;"></div>`;
+        
+        // Substituindo Flexbox por Tabelas HTML fluidas (O Android WebView nativo das maquinetas respeita Tabela 100%)
+        const linha = (l, v) => `
+            <tr>
+                <td style="text-align: left; font-size: 13px; font-weight: normal; padding: 2px 0;">${l}</td>
+                <td style="text-align: right; font-size: 13px; font-weight: bold; padding: 2px 0; white-space: nowrap;">${fmt(v)}</td>
+            </tr>`;
+            
+        const div = `<div style="border-top:1px dashed #000; margin: 4px 0;"></div>`;
+        const divForte = `<div style="border-top:1px solid #000; margin: 6px 0;"></div>`;
 
         return `
-            <div style="font-family:'Courier New'; width:300px; font-weight:bold; color:#000;">
-                <center>
-                    <h2 style="margin:0;">FECHAMENTO CAIXA</h2>
-                    <div style="font-size: 14px; text-transform:uppercase;">${loja}</div>
-                    <div style="font-size:12px;">${data}</div>
-                    <div style="font-size:12px; margin-top:5px;">OP: ${r.session.nome || 'Caixa ' + r.session.id}</div>
-                </center>
-                ${div}
-                ${linha('Fundo Inicial:', r.fundo)}
+            <div style="font-family:'Courier Prime', 'Courier New', Courier, monospace; width: 100%; text-align: left; color:#000;">
+                <div style="text-align: center; margin-bottom: 5px;">
+                    <h2 style="margin: 0; font-size: 18px; font-weight: 900;">FECHAMENTO CAIXA</h2>
+                    <div style="font-size: 14px; font-weight: bold; margin-top: 3px;">${lojaFormatada}</div>
+                    <div style="font-size: 12px; margin-top: 2px;">${data}</div>
+                    <div style="font-size: 12px; margin-top: 3px;">OP: ${removeAccents(r.session.nome || 'Caixa ' + r.session.id)}</div>
+                </div>
+                
+                ${divForte}
+                
+                <table style="width: 100%; border-collapse: collapse;">
+                    ${linha('Fundo Inicial:', r.fundo)}
+                </table>
+                
                 ${div}
                 
-                <div style="text-decoration:underline; font-size:14px;">VENDAS HOJE</div>
-                ${linha('Dinheiro:', r.breakdownVendas.dinheiro)}
-                ${linha('Pix:', r.breakdownVendas.pix)}
-                ${linha('Crédito:', r.breakdownVendas.credito)}
-                ${linha('Débito:', r.breakdownVendas.debito)}
-                ${linha('Crediário:', r.breakdownVendas.crediario)}
-                ${linha('TOTAL VENDAS:', r.vendasHoje)}
+                <div style="font-weight: bold; font-size: 13px; margin: 4px 0;">VENDAS HOJE:</div>
+                <table style="width: 100%; border-collapse: collapse;">
+                    ${linha('- Dinheiro:', r.breakdownVendas.dinheiro)}
+                    ${linha('- Pix:', r.breakdownVendas.pix)}
+                    ${linha('- Credito:', r.breakdownVendas.credito)}
+                    ${linha('- Debito:', r.breakdownVendas.debito)}
+                    ${linha('- Crediario:', r.breakdownVendas.crediario)}
+                    <tr>
+                        <td style="text-align: left; font-size: 13px; font-weight: bold; padding-top: 5px;">TOTAL VENDAS:</td>
+                        <td style="text-align: right; font-size: 14px; font-weight: 900; padding-top: 5px;">${fmt(r.vendasHoje)}</td>
+                    </tr>
+                </table>
+                
                 ${div}
                 
-                <div style="text-decoration:underline; font-size:14px;">ENTRADAS (DIAS ANT.)</div>
-                ${linha('Dinheiro:', r.breakdownAnteriores.dinheiro)}
-                ${linha('Pix:', r.breakdownAnteriores.pix)}
-                ${linha('Cartão:', r.breakdownAnteriores.credito + r.breakdownAnteriores.debito)}
-                ${linha('TOTAL ENTRADAS:', r.entradasAnteriores)}
+                <div style="font-weight: bold; font-size: 13px; margin: 4px 0;">ENTRADAS TOTAIS:</div>
+                <table style="width: 100%; border-collapse: collapse;">
+                    ${linha('- Dinheiro:', r.breakdownAnteriores.dinheiro)}
+                    ${linha('- Pix:', r.breakdownAnteriores.pix)}
+                    ${linha('- Cartao:', r.breakdownAnteriores.credito + r.breakdownAnteriores.debito)}
+                    <tr>
+                        <td style="text-align: left; font-size: 13px; font-weight: bold; padding-top: 2px;">TOTAL ENTRADAS:</td>
+                        <td style="text-align: right; font-size: 13px; font-weight: bold; padding-top: 2px;">${fmt(r.entradasAnteriores)}</td>
+                    </tr>
+                </table>
+                
                 ${div}
                 
-                <div style="text-decoration:underline; font-size:14px;">DESPESAS / SANGRIA</div>
-                ${linha('Dinheiro:', r.breakdownDespesas.dinheiro)}
-                ${linha('Outros:', r.totalDespesas - r.breakdownDespesas.dinheiro)}
-                ${linha('TOTAL DESPESAS:', r.totalDespesas)}
-                ${div}
+                <div style="font-weight: bold; font-size: 13px; margin: 4px 0;">DESPESAS/ RETIRADAS:</div>
+                <table style="width: 100%; border-collapse: collapse;">
+                    ${linha('- Dinheiro Saiu:', r.breakdownDespesas.dinheiro)}
+                    ${linha('- Outros Formatos:', r.totalDespesas - r.breakdownDespesas.dinheiro)}
+                    <tr>
+                        <td style="text-align: left; font-size: 13px; font-weight: bold; padding-top: 2px;">TOTAL DESPESAS:</td>
+                        <td style="text-align: right; font-size: 13px; font-weight: bold; padding-top: 2px;">${fmt(r.totalDespesas)}</td>
+                    </tr>
+                </table>
                 
-                <div style="font-size:1.1rem; margin-top:5px;">
+                ${divForte}
+                
+                <table style="width: 100%; border-collapse: collapse;">
                     ${linha('GAVETA ESPERADO:', r.esperadoGaveta)}
-                    <div style="font-size:10px; text-align:right; margin:2px 0;">(Fundo + Dinheiro - Desp.Din)</div>
+                    <tr><td colspan="2" style="font-size: 10px; text-align: left; padding-bottom: 5px; color:#333;">(Fundo + VendaDin + EntradaDin - DespDin)</td></tr>
                     ${linha('INFORMADO:', r.contado)}
-                    ${linha('DIFERENÇA:', r.diferenca)}
-                </div>
-                ${div}
+                </table>
                 
-                <div style="margin-top: 30px; text-align:center;">
-                    <div style="border-top: 2px solid black; width: 90%; margin: 0 auto 5px auto;"></div>
-                    <span style="font-size: 14px;">Assinatura Responsável</span>
+                <table style="width: 100%; border-collapse: collapse; margin-top: 4px; background: #000; color: #fff; padding: 3px;">
+                    <tr>
+                        <td style="text-align: left; font-size: 14px; font-weight: 900; background: #000; color: #fff; padding: 4px;">DIFERENCA:</td>
+                        <td style="text-align: right; font-size: 14px; font-weight: 900; background: #000; color: #fff; padding: 4px;">${fmt(r.diferenca)}</td>
+                    </tr>
+                </table>
+                
+                ${divForte}
+                
+                <div style="margin-top: 35px; text-align: center;">
+                    <div style="border-top: 1px solid black; width: 85%; margin: 0 auto 5px auto;"></div>
+                    <span style="font-size: 12px; font-weight: bold;">ASSINATURA RESPONSAVEL</span>
                 </div>
-                <br>
-                <div style="text-align:center; font-size:10px;">Naxio System Enterprise</div>
-                <br>.
+                
+                <div style="margin-top: 10px; text-align: center; font-size: 9px; margin-bottom: 20px;">
+                    NAXIO SYSTEM<br>.
+                </div>
             </div>
         `;
     },
