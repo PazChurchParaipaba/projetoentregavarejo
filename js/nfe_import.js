@@ -326,45 +326,74 @@ if (typeof App !== 'undefined') {
                     return candidates.length > 0 ? candidates[0].p : null;
                 };
 
-                const stats = { m: 0, c: 0, e: 0 };
+                const stats = { m: 0, c: 0, e: 0, errosDetalhados: [] };
                 for (let it of confirmedItems) {
                     const mt = findMatch(it);
+                    
+                    // 🚨 SANITIZAÇÃO BRUTAL PARA GARANTIR COMMIT NO BANCO DE DADOS 🚨
+                    // 1. Limpa blocos de docs estourados acidentalmente via PDF com numerais imensos
+                    let cleanName = String(it.nome || "Produto S/N")
+                        .replace(/TRIBUT[ÁA]RIO CNPJ\s*\/\s*CPF/gi, "")
+                        .replace(/[\d\.\-\/]{11,30}/g, "") // Arranca CNPJs/Docs deformados
+                        .replace(/\b\d{6,15}\b/g, "") // Tira números longos soltos (ean perdidos)
+                        .replace(/^[\s\-\.\_\/]+/g, "")
+                        .replace(/\s+/g, " ").trim();
+                    
+                    // 2. Trava estrita de Nomes curtos e limpos na hora de salvar
+                    cleanName = cleanName.substring(0, 75).trim();
+                    
+                    // 3. Trava de limites nas Colunas de BDs Varchar(40, 15 etc)
+                    let cleanSku = String(it.codigo || "").substring(0, 40).trim() || null;
+                    let cleanNcm = String(it.ncm || "").substring(0, 15).trim() || null;
+                    let cleanEan = String(it.ean || "").substring(0, 30).trim() || null;
+                    
+                    let pQtd = parseFloat(it.qtd) || 0;
+                    let pCusto = parseFloat(it.val) || 0;
+                    let pVenda = parseFloat(it.selectedSalePrice) || 0;
+
                     if (mt) {
                         const { error } = await _sb.from('products').update({ 
-                            estoque: parseFloat((mt.estoque || 0)) + parseFloat(it.qtd), 
-                            preco_custo: parseFloat(it.val) || 0,
-                            preco: parseFloat(it.selectedSalePrice) || 0
+                            estoque: parseFloat((mt.estoque || 0)) + pQtd, 
+                            preco_custo: pCusto,
+                            preco: pVenda
                         }).eq('id', mt.id); 
-                        if (error) { console.error("NFE Update Error:", error); stats.e++; } 
-                        else stats.m++;
+                        if (error) { 
+                            console.error("NFE Update Error:", error); 
+                            stats.e++; 
+                            stats.errosDetalhados.push("Erro att: " + cleanName.substring(0,10));
+                        } else { stats.m++; }
                     } else {
                         const { error } = await _sb.from('products').insert({
                             store_id: App.state.storeId, 
-                            nome: String(it.nome).substring(0, 150), 
-                            sku: it.codigo || null, 
-                            ncm: it.ncm || null, 
-                            codigo_cardapio: it.codigo || null,
-                            estoque: parseFloat(it.qtd) || 0, 
-                            preco_custo: parseFloat(it.val) || 0, 
-                            preco: parseFloat(it.selectedSalePrice) || 0, 
+                            nome: cleanName, 
+                            sku: cleanSku, 
+                            ncm: cleanNcm, 
+                            codigo_cardapio: cleanSku, // Código de match
+                            estoque: pQtd, 
+                            preco_custo: pCusto, 
+                            preco: pVenda, 
                             categoria: 'Importados NFE', 
                             exibir_online: true, 
-                            codigo_barras: it.ean || null
+                            codigo_barras: cleanEan
                         });
-                        if (error) { console.error("NFE Insert Error:", error); stats.e++; } 
-                        else stats.c++;
+                        if (error) { 
+                            console.error("NFE Insert Error:", error); 
+                            stats.e++;
+                            stats.errosDetalhados.push("Erro inc: " + cleanName.substring(0,10) + " - " + error.code);
+                        } else { stats.c++; }
                     }
                 }
                 
                 if (stats.e > 0 && stats.c === 0 && stats.m === 0) {
-                    NaxioUI.alert('⚠️ Falha Parcial', `Encontramos ${stats.e} erro(s) ao salvar no Banco de Dados. Verifique nomes muito longos ou preenchimentos.`, 'error');
+                    console.log("LOG DOS ERROS NFE:", stats.errosDetalhados);
+                    NaxioUI.alert('⚠️ Falha Total', `TODOS os ${stats.e} cadastros falharam. O Banco de dados rejeitou as informações mesmo super curtas.\nAcesse o Console (F12) para ver a violação específica.`, 'error');
                 } else {
-                    NaxioUI.alert('✅ Entrada Processada', `Estoque e preços atualizados!\n\n🔹 Atualizados: ${stats.m}\n🔹 Novos Cadastros: ${stats.c}\n❌ Erros de salvamento: ${stats.e}`, 'success');
+                    NaxioUI.alert('✅ Entrada Processada', `Estoque e preços atualizados com adaptações curtas!\n\n🔹 Atualizados: ${stats.m}\n🔹 Novos Cadastros (Curtos): ${stats.c}\n❌ Falhas Persistentes: ${stats.e}`, 'success');
                     const modalNfe = document.getElementById('nfe-import-modal');
                     if (modalNfe) modalNfe.remove();
                 }
                 
-                if (App && App.store && App.store.loadMyProducts) window.setTimeout(() => App.store.loadMyProducts(), 500);
+                if (App && App.store && App.store.loadMyProducts) window.setTimeout(() => App.store.loadMyProducts(), 800);
             },
 
             lev: (s, t) => {
