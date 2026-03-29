@@ -1023,11 +1023,32 @@ if (typeof App !== 'undefined') {
                 const { data: order } = await _sb.from('orders').select('*').eq('id', orderId).single();
                 if (!order) return;
 
-                // Se tem product_id, restaura estoque
-                if (order.product_id) {
-                    const { data: prod } = await _sb.from('products').select('estoque').eq('id', order.product_id).single();
-                    if (prod) {
-                        await _sb.from('products').update({ estoque: (prod.estoque || 0) + (order.quantidade || 1) }).eq('id', order.product_id);
+                // Tenta puxar itens do JSON interno se existir (novo PDV)
+                let itensVenda = [];
+                try {
+                    if (order.observacao && order.observacao.startsWith('{')) {
+                        const obsObj = JSON.parse(order.observacao);
+                        if (obsObj.itens) itensVenda = obsObj.itens;
+                        if (obsObj.items) itensVenda = obsObj.items;
+                    }
+                } catch(e){}
+                
+                // Fallback para venda antiga (1 item)
+                if (itensVenda.length === 0 && order.product_id) {
+                    itensVenda.push({ id: order.product_id, qtd: (order.quantidade || 1) });
+                }
+
+                // Restaura estoque de todos os itens da venda
+                if (itensVenda.length > 0) {
+                    for (const item of itensVenda) {
+                        const pId = item.id || item.product_id;
+                        const pQtd = parseFloat(item.qtd) || parseFloat(item.quantidade) || 1;
+                        if (pId) {
+                            const { data: prod } = await _sb.from('products').select('estoque').eq('id', pId).single();
+                            if (prod) {
+                                await _sb.from('products').update({ estoque: (prod.estoque || 0) + pQtd }).eq('id', pId);
+                            }
+                        }
                     }
                 }
 
@@ -1053,11 +1074,32 @@ if (typeof App !== 'undefined') {
                 const { data: order } = await _sb.from('orders').select('*').eq('id', orderId).single();
                 if (!order) return;
 
+                // Tenta puxar itens do JSON interno se existir (novo PDV)
+                let itensVenda = [];
+                try {
+                    if (order.observacao && order.observacao.startsWith('{')) {
+                        const obsObj = JSON.parse(order.observacao);
+                        if (obsObj.itens) itensVenda = obsObj.itens;
+                        if (obsObj.items) itensVenda = obsObj.items;
+                    }
+                } catch(e){}
+                
+                // Fallback para venda antiga (1 item)
+                if (itensVenda.length === 0 && order.product_id) {
+                    itensVenda.push({ id: order.product_id, qtd: (order.quantidade || 1) });
+                }
+
                 // Restaura estoque
-                if (order.product_id) {
-                    const { data: prod } = await _sb.from('products').select('estoque').eq('id', order.product_id).single();
-                    if (prod) {
-                        await _sb.from('products').update({ estoque: (prod.estoque || 0) + (order.quantidade || 1) }).eq('id', order.product_id);
+                if (itensVenda.length > 0) {
+                    for (const item of itensVenda) {
+                        const pId = item.id || item.product_id;
+                        const pQtd = parseFloat(item.qtd) || parseFloat(item.quantidade) || 1;
+                        if (pId) {
+                            const { data: prod } = await _sb.from('products').select('estoque').eq('id', pId).single();
+                            if (prod) {
+                                await _sb.from('products').update({ estoque: (prod.estoque || 0) + pQtd }).eq('id', pId);
+                            }
+                        }
                     }
                 }
 
