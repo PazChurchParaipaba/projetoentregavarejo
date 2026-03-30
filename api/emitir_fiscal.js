@@ -2,6 +2,8 @@
 // 🛡️ VERSÃO V23.0: ROBUSTEZ OPERACIONAL & FISCAL (FINAL)
 // ============================================================================
 import { createClient } from '@supabase/supabase-js';
+import https from 'https';
+import { URLSearchParams } from 'url';
 
 const SERIE_EMISSAO = 2;
 const TIMEOUT_LIMITE = 7500; // Reduzido para 7.5s (Vercel Hobby tem limite de 10s)
@@ -18,6 +20,11 @@ const parseMonetario = (val) => {
         return isNaN(n) ? 0.00 : n;
     } catch { return 0.00; }
 };
+
+// --- POLYFILL FETCH SEGURANÇA (Para Node < 18) ---
+if (typeof fetch === 'undefined') {
+    console.warn("⚠️ Fetch global não encontrado. Verifique a versão do Node na Vercel.");
+}
 
 const round2 = (num) => Math.round((num + Number.EPSILON) * 100) / 100;
 const formatQty = (v) => parseFloat(parseMonetario(v).toFixed(4));
@@ -58,37 +65,122 @@ function mapearMeioPagamento(input) {
 
 class NuvemFiscalService {
     constructor(clientId, clientSecret, ambiente) {
-        this.baseUrl = 'https://api.nuvemfiscal.com.br';
-        this.authUrl = 'https://auth.nuvemfiscal.com.br/oauth/token';
+        this.baseUrl = 'api.nuvemfiscal.com.br';
+        this.authUrl = 'auth.nuvemfiscal.com.br';
         this.creds = { clientId, clientSecret };
         this.ambiente = String(ambiente) === '1' ? 'producao' : 'homologacao';
     }
+
     async getToken() {
-        const params = new URLSearchParams({ grant_type: 'client_credentials', client_id: this.creds.clientId, client_secret: this.creds.clientSecret, scope: 'nfce' });
-        const res = await fetch(this.authUrl, { method: 'POST', body: params });
-        if (!res.ok) throw new Error("Erro de Autenticação na Nuvem Fiscal. Verifique suas credenciais Client ID/Secret.");
-        return (await res.json()).access_token;
+        const body = new URLSearchParams({ 
+            grant_type: 'client_credentials', 
+            client_id: this.creds.clientId, 
+            client_secret: this.creds.clientSecret, 
+            scope: 'nfce' 
+        }).toString();
+
+        const options = {
+            hostname: this.authUrl,
+            path: '/oauth/token',
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Content-Length': Buffer.byteLength(body)
+            }
+        };
+
+        return new Promise((resolve, reject) => {
+            const req = https.request(options, (res) => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => {
+                    try {
+                        const json = JSON.parse(data);
+                        if (res.statusCode >= 400) reject(new Error(json.error_description || json.message || "Erro Autenticação"));
+                        else resolve(json.access_token);
+                    } catch (e) { reject(new Error("Resposta de autenticação inválida")); }
+                });
+            });
+            req.on('error', reject);
+            req.write(body);
+            req.end();
+        });
     }
+
     async apiCall(endpoint, method, token, body = null) {
-        const opts = { method, headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } };
-        if (body) opts.body = JSON.stringify(body);
-        const res = await fetch(`${this.baseUrl}${endpoint}`, opts);
-        const text = await res.text();
-        try { return JSON.parse(text); } catch { return text; }
+        const postData = body ? JSON.stringify(body) : '';
+        const options = {
+            hostname: this.baseUrl,
+            path: endpoint,
+            method: method,
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        };
+        if (postData) options.headers['Content-Length'] = Buffer.byteLength(postData);
+
+        return new Promise((resolve, reject) => {
+            const req = https.request(options, (res) => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => {
+                    try {
+                        const json = JSON.parse(data);
+                        resolve(json);
+                    } catch (e) {
+                        resolve(data); // Retorna como string se não for JSON
+                    }
+                });
+            });
+            req.on('error', e => resolve({ error: { message: e.message } })); // Não quebra o fluxo
+            if (postData) req.write(postData);
+            req.end();
+        });
     }
+
     async baixarPdfBinario(token, id) {
-        try {
-            const res = await fetch(`${this.baseUrl}/nfce/${id}/pdf`, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (res.ok) return `data:application/pdf;base64,${Buffer.from(await res.arrayBuffer()).toString('base64')}`;
-        } catch (e) { console.error("❌ Erro ao baixar PDF:", e); }
-        return null;
+        return new Promise((resolve) => {
+            const options = {
+                hostname: this.baseUrl,
+                path: `/nfce/${id}/pdf`,
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${token}` }
+            };
+            const req = https.request(options, (res) => {
+                const chunks = [];
+                res.on('data', c => chunks.push(c));
+                res.on('end', () => {
+                    if (res.statusCode === 200) {
+                        const buffer = Buffer.concat(chunks);
+                        resolve(`data:application/pdf;base64,${buffer.toString('base64')}`);
+                    } else resolve(null);
+                });
+            });
+            req.on('error', () => resolve(null));
+            req.end();
+        });
     }
+
     async baixarXmlBinario(token, id) {
-        try {
-            const res = await fetch(`${this.baseUrl}/nfce/${id}/xml`, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (res.ok) return await res.text();
-        } catch (e) { console.error("❌ Erro ao baixar XML:", e); }
-        return null;
+        return new Promise((resolve) => {
+            const options = {
+                hostname: this.baseUrl,
+                path: `/nfce/${id}/xml`,
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${token}` }
+            };
+            const req = https.request(options, (res) => {
+                let data = '';
+                res.on('data', c => data += c);
+                res.on('end', () => {
+                    if (res.statusCode === 200) resolve(data);
+                    else resolve(null);
+                });
+            });
+            req.on('error', () => resolve(null));
+            req.end();
+        });
     }
 }
 
@@ -102,18 +194,39 @@ export default async function handler(req, res) {
     let supabase = null, storeId = null, numReservado = null;
 
     try {
-        const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+        // 1. Parsing Robusto do Body
+        let body = {};
+        try {
+            body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+        } catch (pe) {
+            console.error("❌ Erro parsing body:", pe);
+            return res.status(400).json({ sucesso: false, error: "JSON inválido no corpo da requisição." });
+        }
+
         const { order_id, store_id, cpf_nota, items_payload, payments_payload } = body;
 
-        if (!order_id || !store_id) return res.status(400).json({ error: "IDs de Pedido ou Loja ausentes." });
+        if (!order_id || !store_id) {
+            return res.status(400).json({ sucesso: false, error: "IDs de Pedido ou Loja ausentes na requisição." });
+        }
+
         storeId = store_id;
-        supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+        
+        // 2. Verificação de Variáveis Críticas
+        const S_URL = process.env.SUPABASE_URL || '';
+        const S_KEY = process.env.SUPABASE_KEY || '';
+        
+        if (!S_URL || !S_KEY) {
+            console.error("❌ Erro: Configuração do Supabase ausente no servidor (Vercel ENV).");
+            return res.status(500).json({ sucesso: false, error: "Servidor sem configuração do Banco de Dados (Supabase URL/Key)." });
+        }
+
+        supabase = createClient(S_URL, S_KEY);
 
         const { data: store, error: storeErr } = await supabase.from('stores').select('*').eq('id', store_id).single();
         const { data: order, error: orderErr } = await supabase.from('orders').select('*').eq('id', order_id).single();
 
-        if (storeErr || !store) throw new Error("Loja não encontrada.");
-        if (orderErr || !order) throw new Error("Pedido não encontrado.");
+        if (storeErr || !store) throw new Error(`Loja ${store_id} não encontrada no banco.`);
+        if (orderErr || !order) throw new Error("Pedido não encontrado no banco.");
 
         // Validação de Dados Críticos da Loja
         if (!store.nuvem_client_id || !store.nuvem_client_secret) throw new Error("Loja sem credenciais da Nuvem Fiscal.");
