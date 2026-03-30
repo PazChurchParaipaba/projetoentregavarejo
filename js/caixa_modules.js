@@ -911,108 +911,88 @@ const Caixa = {
         }
     },
 
-    // 🔥 GERAÇÃO DE CONTEÚDO DETALHADO E BLINDADO PARA TECTOY
+    // 🔥 GERAÇÃO DE CONTEÚDO DETALHADO E BLINDADO PARA TECTOY (FORMATO TEXTO PURO MONOSPACE)
     generateContent: (r) => {
-        const loja = App.state.currentStore?.nome_loja || "MINHA LOJA";
+        let loja = App.state.currentStore?.nome_loja || App.state.currentStore?.nome || App.state.profile?.nome_loja || "MINHA LOJA";
+        if (typeof loja !== 'string' || loja.trim() === '') loja = "MINHA LOJA";
+
         // Convertendo strings sensíveis a problemas de conversão ESC/POS
         const removeAccents = (str) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         const lojaFormatada = removeAccents(loja).toUpperCase();
         
-        const data = new Date().toLocaleString('pt-BR');
+        const dataStr = new Date().toLocaleString('pt-BR');
         const fmt = (v) => `R$ ${(v || 0).toFixed(2)}`;
         
-        // Substituindo Flexbox por Tabelas HTML fluidas (O Android WebView nativo das maquinetas respeita Tabela 100%)
-        const linha = (l, v) => `
-            <tr>
-                <td style="text-align: left; font-size: 13px; font-weight: normal; padding: 2px 0;">${l}</td>
-                <td style="text-align: right; font-size: 13px; font-weight: bold; padding: 2px 0; white-space: nowrap;">${fmt(v)}</td>
-            </tr>`;
-            
-        const div = `<div style="border-top:1px dashed #000; margin: 4px 0;"></div>`;
-        const divForte = `<div style="border-top:1px solid #000; margin: 6px 0;"></div>`;
+        // Define largura total de 40 colunas para impressora térmica
+        const width = 40;
+        
+        const separator = '-'.repeat(width) + '\n';
+        const opName = removeAccents(r.session.nome || 'cx ' + r.session.id);
+        
+        // Centraliza texto
+        const center = (text) => {
+            if (text.length >= width) return text.substring(0, width) + '\n';
+            const pad = Math.floor((width - text.length) / 2);
+            return ' '.repeat(pad) + text + '\n';
+        };
 
-        return `
-            <div style="font-family:'Courier Prime', 'Courier New', Courier, monospace; width: 100%; text-align: left; color:#000;">
-                <div style="text-align: center; margin-bottom: 5px;">
-                    <h2 style="margin: 0; font-size: 18px; font-weight: 900;">FECHAMENTO CAIXA</h2>
-                    <div style="font-size: 14px; font-weight: bold; margin-top: 3px;">${lojaFormatada}</div>
-                    <div style="font-size: 12px; margin-top: 2px;">${data}</div>
-                    <div style="font-size: 12px; margin-top: 3px;">OP: ${removeAccents(r.session.nome || 'Caixa ' + r.session.id)}</div>
-                </div>
-                
-                ${divForte}
-                
-                <table style="width: 100%; border-collapse: collapse;">
-                    ${linha('Fundo Inicial:', r.fundo)}
-                </table>
-                
-                ${div}
-                
-                <div style="font-weight: bold; font-size: 13px; margin: 4px 0;">VENDAS HOJE:</div>
-                <table style="width: 100%; border-collapse: collapse;">
-                    ${linha('- Dinheiro:', r.breakdownVendas.dinheiro)}
-                    ${linha('- Pix:', r.breakdownVendas.pix)}
-                    ${linha('- Credito:', r.breakdownVendas.credito)}
-                    ${linha('- Debito:', r.breakdownVendas.debito)}
-                    ${linha('- Crediario:', r.breakdownVendas.crediario)}
-                    <tr>
-                        <td style="text-align: left; font-size: 13px; font-weight: bold; padding-top: 5px;">TOTAL VENDAS:</td>
-                        <td style="text-align: right; font-size: 14px; font-weight: 900; padding-top: 5px;">${fmt(r.vendasHoje)}</td>
-                    </tr>
-                </table>
-                
-                ${div}
-                
-                <div style="font-weight: bold; font-size: 13px; margin: 4px 0;">ENTRADAS TOTAIS:</div>
-                <table style="width: 100%; border-collapse: collapse;">
-                    ${linha('- Dinheiro:', r.breakdownAnteriores.dinheiro)}
-                    ${linha('- Pix:', r.breakdownAnteriores.pix)}
-                    ${linha('- Cartao:', r.breakdownAnteriores.credito + r.breakdownAnteriores.debito)}
-                    <tr>
-                        <td style="text-align: left; font-size: 13px; font-weight: bold; padding-top: 2px;">TOTAL ENTRADAS:</td>
-                        <td style="text-align: right; font-size: 13px; font-weight: bold; padding-top: 2px;">${fmt(r.entradasAnteriores)}</td>
-                    </tr>
-                </table>
-                
-                ${div}
-                
-                <div style="font-weight: bold; font-size: 13px; margin: 4px 0;">DESPESAS/ RETIRADAS:</div>
-                <table style="width: 100%; border-collapse: collapse;">
-                    ${linha('- Dinheiro Saiu:', r.breakdownDespesas.dinheiro)}
-                    ${linha('- Outros Formatos:', r.totalDespesas - r.breakdownDespesas.dinheiro)}
-                    <tr>
-                        <td style="text-align: left; font-size: 13px; font-weight: bold; padding-top: 2px;">TOTAL DESPESAS:</td>
-                        <td style="text-align: right; font-size: 13px; font-weight: bold; padding-top: 2px;">${fmt(r.totalDespesas)}</td>
-                    </tr>
-                </table>
-                
-                ${divForte}
-                
-                <table style="width: 100%; border-collapse: collapse;">
-                    ${linha('GAVETA ESPERADO:', r.esperadoGaveta)}
-                    <tr><td colspan="2" style="font-size: 10px; text-align: left; padding-bottom: 5px; color:#333;">(Fundo + VendaDin + EntradaDin - DespDin)</td></tr>
-                    ${linha('INFORMADO:', r.contado)}
-                </table>
-                
-                <table style="width: 100%; border-collapse: collapse; margin-top: 4px; background: #000; color: #fff; padding: 3px;">
-                    <tr>
-                        <td style="text-align: left; font-size: 14px; font-weight: 900; background: #000; color: #fff; padding: 4px;">DIFERENCA:</td>
-                        <td style="text-align: right; font-size: 14px; font-weight: 900; background: #000; color: #fff; padding: 4px;">${fmt(r.diferenca)}</td>
-                    </tr>
-                </table>
-                
-                ${divForte}
-                
-                <div style="margin-top: 35px; text-align: center;">
-                    <div style="border-top: 1px solid black; width: 85%; margin: 0 auto 5px auto;"></div>
-                    <span style="font-size: 12px; font-weight: bold;">ASSINATURA RESPONSAVEL</span>
-                </div>
-                
-                <div style="margin-top: 10px; text-align: center; font-size: 9px; margin-bottom: 20px;">
-                    NAXIO SYSTEM<br>.
-                </div>
-            </div>
-        `;
+        // Linha com justificativa (Label à esquerda, valor à direita)
+        const linha = (lbl, valStr) => {
+            const valFormated = typeof valStr === 'number' ? fmt(valStr) : valStr;
+            const espacos = width - lbl.length - valFormated.length;
+            if (espacos > 0) {
+                return lbl + ' '.repeat(espacos) + valFormated + '\n';
+            }
+            return lbl + ' ' + valFormated + '\n';
+        };
+
+        let out = '';
+        out += center("FECHAMENTO DE CAIXA");
+        out += center(lojaFormatada);
+        out += '\n';
+        out += center(dataStr);
+        out += center(`OP: ${opName}`);
+        out += separator;
+
+        out += linha("Fundo Inicial:", r.fundo);
+        out += separator;
+
+        out += "VENDAS HOJE\n";
+        out += linha("Dinheiro:", r.breakdownVendas.dinheiro);
+        out += linha("Pix:", r.breakdownVendas.pix);
+        out += linha("Crédito:", r.breakdownVendas.credito);
+        out += linha("Débito:", r.breakdownVendas.debito);
+        out += linha("Crediário:", r.breakdownVendas.crediario);
+        out += linha("TOTAL VENDAS:", r.vendasHoje);
+        out += separator;
+
+        out += "ENTRADAS (DIAS ANT.)\n";
+        out += linha("Dinheiro:", r.breakdownAnteriores.dinheiro);
+        out += linha("Pix:", r.breakdownAnteriores.pix);
+        out += linha("Cartão:", r.breakdownAnteriores.credito + r.breakdownAnteriores.debito);
+        out += linha("TOTAL ENTRADAS:", r.entradasAnteriores);
+        out += separator;
+
+        out += "DESPESAS / SANGRIA\n";
+        out += linha("Dinheiro:", r.breakdownDespesas.dinheiro);
+        out += linha("Outros:", r.totalDespesas - r.breakdownDespesas.dinheiro);
+        out += linha("TOTAL DESPESAS:", r.totalDespesas);
+        out += separator;
+
+        out += linha("GAVETA ESPERADO:", r.esperadoGaveta);
+        out += center("(Fundo + Dinheiro - Desp.Din)");
+        out += linha("INFORMADO:", r.contado);
+        out += linha("DIFERENÇA:", r.diferenca);
+        out += separator;
+        
+        out += '\n';
+        out += center('______________________________________');
+        out += center('Assinatura Responsável');
+        out += '\n';
+        out += center('Naxio System Enterprise');
+        out += '\n';
+
+        return `<pre style="font-family: 'Courier New', monospace; font-size: 14px; font-weight: bold; line-height: 1.4; color: #000; margin: 0; padding: 10px; width: 100%; white-space: pre-wrap; word-break: break-all;">${out}</pre>`;
     },
 
     printParcial: async () => {
