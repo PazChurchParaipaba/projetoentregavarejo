@@ -4,7 +4,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 const SERIE_EMISSAO = 2;
-const TIMEOUT_LIMITE = 25000; // Aumentado para 25s para evitar erros de rede lenta
+const TIMEOUT_LIMITE = 7500; // Reduzido para 7.5s (Vercel Hobby tem limite de 10s)
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -276,18 +276,34 @@ export default async function handler(req, res) {
 
         // Chamada à API
         const jsonNuvem = await service.apiCall('/nfce', 'POST', token, payload);
-        if (!jsonNuvem || jsonNuvem.error) return res.status(200).json({ sucesso: false, status: 'erro', message: jsonNuvem?.error?.message || "Erro na API da Nuvem Fiscal", raw: jsonNuvem });
+        
+        // --- TRATAMENTO DE ERRO NA CHAMADA INICIAL ---
+        if (!jsonNuvem || typeof jsonNuvem === 'string' || jsonNuvem.error) {
+            const errorMsg = typeof jsonNuvem === 'string' ? jsonNuvem : (jsonNuvem?.error?.message || "Erro desconhecido na Nuvem Fiscal");
+            console.error("❌ Erro Nuvem Fiscal (Post):", errorMsg);
+            return res.status(200).json({ 
+                sucesso: false, 
+                status: 'erro', 
+                message: errorMsg,
+                raw: jsonNuvem 
+            });
+        }
 
         // Atualização inicial com Chave e ID
         await supabase.from('orders').update({ id_nuvem: jsonNuvem.id, status_sefaz: jsonNuvem.status, numero_nfce: numReservado, serie_nfce: SERIE_EMISSAO, chave_acesso: jsonNuvem.chave }).eq('id', order_id);
 
-        // Polling de Status
+        // Polling de Status (Garantia de não estourar 10s do Vercel)
         const start = Date.now();
         let statusFinal = jsonNuvem;
-        while (Date.now() - start < TIMEOUT_LIMITE) {
-            if (statusFinal.status === 'autorizado' || statusFinal.status === 'erro' || statusFinal.status === 'rejeitado') break;
-            await delay(2500);
-            statusFinal = await service.apiCall(`/nfce/${jsonNuvem.id}`, 'GET', token);
+        try {
+            while (Date.now() - start < TIMEOUT_LIMITE) {
+                if (statusFinal.status === 'autorizado' || statusFinal.status === 'erro' || statusFinal.status === 'rejeitado') break;
+                await delay(1500); // Polling mais rápido para caber nos 10s
+                statusFinal = await service.apiCall(`/nfce/${jsonNuvem.id}`, 'GET', token);
+                if (typeof statusFinal === 'string') throw new Error("Resposta da Nuvem Fiscal não é JSON durante polling.");
+            }
+        } catch (e) {
+            console.warn("⚠️ Timeout ou Erro no Polling, retornando status atual:", e.message);
         }
 
         let pdf = statusFinal.url_pdf_danfe;
