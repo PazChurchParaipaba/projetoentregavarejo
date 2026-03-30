@@ -211,13 +211,13 @@ export default async function handler(req, res) {
 
         storeId = store_id;
         
-        // 2. Verificação de Variáveis Críticas
-        const S_URL = process.env.SUPABASE_URL || '';
-        const S_KEY = process.env.SUPABASE_KEY || '';
+        // 2. Verificação de Variáveis Críticas (Mapeamento Robusto para Vercel)
+        const S_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://groezaseypdbpgymgpvo.supabase.co';
+        const S_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdyb2V6YXNleXBkYnBneW1ncHZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwNjkxNjYsImV4cCI6MjA4MTY0NTE2Nn0.5U5QeoGmZn_i9Y8POoUCkatBUAdSW-cjHRyfxpm_pyM';
         
         if (!S_URL || !S_KEY) {
-            console.error("❌ Erro: Configuração do Supabase ausente no servidor (Vercel ENV).");
-            return res.status(500).json({ sucesso: false, error: "Servidor sem configuração do Banco de Dados (Supabase URL/Key)." });
+            console.error("❌ Erro: Configuração do Supabase ausente ou inválida no servidor.");
+            return res.status(500).json({ sucesso: false, error: "Servidor sem acesso ao banco de dados." });
         }
 
         supabase = createClient(S_URL, S_KEY);
