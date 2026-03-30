@@ -307,7 +307,30 @@ const Fiscal = {
                 })
             });
 
-            const data = await res.json();
+            // --- NOVO: Tratamento Robusto de Response ---
+            let data;
+            const contentType = res.headers.get("content-type");
+            
+            if (!res.ok) {
+                const errorText = await res.text();
+                console.error("❌ Erro HTTP na API Fiscal:", res.status, errorText);
+                
+                let friendlyMsg = "Erro no servidor fiscal.";
+                if (res.status === 504 || res.status === 500) {
+                    friendlyMsg = "O servidor demorou muito para responder (Timeout). Verifique se a nota foi emitida no menu Fiscal em alguns minutos.";
+                }
+                
+                await NaxioUI.alert('❌ Erro de Comunicação', `${friendlyMsg}\n\nStatus: ${res.status}\nResposta: ${errorText.substring(0, 100)}...`, 'error');
+                return { success: false, erro: friendlyMsg };
+            }
+
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                data = await res.json();
+            } else {
+                const text = await res.text();
+                console.error("❌ Resposta inesperada (não-JSON):", text);
+                throw new Error("Resposta do servidor não está em formato JSON: " + text.substring(0, 50));
+            }
 
             if (data.sucesso || data.status === 'autorizado') {
                 App.utils.toast("✅ NFC-e AUTORIZADA!", "success");
