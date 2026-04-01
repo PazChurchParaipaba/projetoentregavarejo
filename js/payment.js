@@ -271,12 +271,17 @@ Object.assign(App.payment, {
 
         const sessionId = (typeof Caixa !== 'undefined' && Caixa.state.session) ? Caixa.state.session.id : null;
 
+        const subtotalTaxavel = App.state.paymentSplits.reduce((acc, s) => acc + s.amount, 0); 
+        const checkModal = document.getElementById('modal-taxa-10');
+        const taxaServico = (checkModal && checkModal.checked) ? (subtotalTaxavel * 0.10) : 0;
+
         const { data: newOrder } = await _sb.from('orders').insert({
             store_id: App.state.storeId,
             session_id: sessionId,
             status: 'concluido',
             origem_venda: 'comanda',
             total_pago: total,
+            taxa_servico: taxaServico, // 🔥 Salva explicitamente para o caixa descontar na conferência
             endereco_destino: `Mesa ${App.state.currentMesaNum}`,
             observacao: observacaoJson,           // 🔥 JSON completo com pagamentos
             payments_info: pagamentosArray,        // 🔥 Redundancia: tambem em coluna propria
