@@ -738,15 +738,16 @@ const RelatoriosEnterprise = {
 
     // Janela de Impressão com CSS de Fonte Aumentada
     printHtml: (htmlContent) => {
-        const width = RelatoriosEnterprise.config.larguraPapel; // ex: '80mm'
+        const width = '80mm'; // Enforced fixed width for Elgin, Tanca, Tectoy
         const printWin = window.open('', '', 'width=800,height=600');
 
         printWin.document.write(`
             <html>
             <head>
                 <style>
+                    @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap');
                     body { 
-                        font-family: 'Courier New', monospace; 
+                        font-family: 'Courier Prime', 'Courier New', monospace; 
                         margin: 0; 
                         padding: 0; 
                         width: 100%; 
@@ -764,25 +765,28 @@ const RelatoriosEnterprise = {
                         display: block;
                         margin-left: auto;
                         margin-right: auto;
-                        padding: 0 5px; /* Margem de segurança para evitar cortes */
+                        padding: 0 10px; /* Margem de segurança */
                         box-sizing: border-box;
-                        text-align: left; /* Restaura alinhamento do texto interno */
+                        text-align: left;
                     }
                     table { width: 100%; border-collapse: collapse; }
                     
-                    /* AQUI AUMENTA A FONTE DAS CÉLULAS */
-                    body, td, th { font-weight: 900 !important; }
-                    td, th { vertical-align: top; text-align: left; padding: 2px 0; color: #000 !important; font-size: 16px; font-weight: 900; }
+                    /* Fonte otimizada para 80mm - aprox 40-42 caracteres */
+                    body, td, th { font-weight: 700 !important; }
+                    td, th { vertical-align: top; text-align: left; padding: 2px 0; color: #000 !important; font-size: 12px; }
                     .right { text-align: right; }
-                    hr { border: 0; border-top: 2px dashed black; margin: 5px 0; }
+                    hr { border: 0; border-top: 1px dashed black; margin: 8px 0; }
+                    .bold { font-weight: 900 !important; }
+                    .center { text-align: center; }
+                    .title { font-size: 18px; font-weight: 900; }
                     
                     * { -webkit-print-color-adjust: exact; }
                     @page { margin: 0; size: auto; }
                     
-                    /* Força centralização na impressão real */
                     @media print {
                         body { margin: 0; }
-                        .print-container { margin: 0 auto; }
+                        .print-container { margin: 0 auto; width: 80mm; }
+                        .no-print { display: none; }
                     }
                 </style>
             </head>
@@ -795,7 +799,7 @@ const RelatoriosEnterprise = {
                 <script>
                     setTimeout(() => { 
                         window.print(); 
-                        // window.close(); // Opcional: fechar após imprimir
+                        // window.close(); 
                     }, 800);
                 </script>
             </body>
@@ -816,19 +820,44 @@ const RelatoriosEnterprise = {
         }
         const listaAgrupada = Object.values(agrupados);
 
-        const itensHtml = listaAgrupada.map(i => `<tr><td>${i.qtd}x</td><td>${i.nome}</td><td class="right">${(i.price * i.qtd).toFixed(2)}</td></tr>`).join('');
+        const itensHtml = listaAgrupada.map(i => `<tr><td>${i.qtd}x</td><td>${i.nome.slice(0, 25)}</td><td class="right">${(i.price * i.qtd).toFixed(2)}</td></tr>`).join('');
         const pagsHtml = pagamentos.map(p => `<tr><td colspan="2">${p.method.toUpperCase()}</td><td class="right">${p.amount.toFixed(2)}</td></tr>`).join('');
 
+        // Detalhes do Crediário (se houver)
+        let installmentsHtml = '';
+        try {
+            const obs = (typeof comanda.observacao === 'string' && comanda.observacao.startsWith('{')) ? JSON.parse(comanda.observacao) : {};
+            if (obs.installments && obs.installments.length > 0) {
+                installmentsHtml = `
+                    <div style="margin-top:10px; font-weight:bold; border-bottom:1px solid #000;">PLANO DE PAGAMENTO:</div>
+                    <table style="font-size:12px; margin-top:5px;">
+                        ${obs.installments.map(ins => `
+                            <tr>
+                                <td>Parc. ${ins.parcela}</td>
+                                <td>${new Date(ins.vencimento + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
+                                <td class="right">R$ ${parseFloat(ins.valor).toFixed(2)}</td>
+                            </tr>
+                        `).join('')}
+                    </table>
+                    <hr>
+                `;
+            }
+        } catch(e) { console.error("Erro ao ler parcelas:", e); }
+
+        const nomeLoja = (App.state.currentStore?.nome_loja) || App.state.profile?.nome_loja || 'Comprovante Loja';
+
         RelatoriosEnterprise.printHtml(`
-            <div style="text-align:center; font-weight:bold; font-size:18px;">RECIBO #${comanda.numero}</div>
-            <div style="text-align:center; font-size:14px; margin-bottom:10px;">${new Date().toLocaleString('pt-BR')}</div>
+            <div class="center bold title">${nomeLoja.toUpperCase()}</div>
+            <div class="center bold">RECIBO #${comanda.numero || comanda.id.toString().slice(-6)}</div>
+            <div class="center" style="font-size:12px; margin-bottom:10px;">${new Date().toLocaleString('pt-BR')}</div>
             <hr>
-            <table style="font-size:16px;">${itensHtml}</table>
+            <table>${itensHtml}</table>
             <hr>
-            <table style="font-size:16px;">${pagsHtml}</table>
+            <table>${pagsHtml}</table>
             <hr>
-            <div style="text-align:right; font-weight:bold; font-size:22px;">TOTAL: R$ ${(comanda.total_pago).toFixed(2)}</div>
-            <div style="text-align:center; margin-top:20px; font-size:14px;">Obrigado pela preferência!</div>
+            ${installmentsHtml}
+            <div style="text-align:right; font-weight:bold; font-size:20px;">TOTAL: R$ ${(comanda.total_pago).toFixed(2)}</div>
+            <div class="center" style="margin-top:20px; font-size:12px;">Obrigado pela preferência!</div>
         `);
     },
 
