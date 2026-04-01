@@ -346,7 +346,7 @@ if (typeof App !== 'undefined') {
                             basePrice: totals.finalTotal,
                             address: `${address} (Itens: ${itemsDesc})`,
                             requer_montagem: false,
-                            taxa: totals.finalTotal * 0.10,
+                            taxa: App.utils.isRestaurante() ? (totals.productsTotal * 0.10) : 0, // 🔥 Removido 10% fixo para varejo
                             delivery_info: JSON.stringify(deliveryInfo)
                         });
                     } else {
