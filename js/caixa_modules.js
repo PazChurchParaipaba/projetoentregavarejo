@@ -9,7 +9,7 @@ const Caixa = {
         qtdVendas: 0,
         entradasAnteriores: 0,
         totalDespesas: 0,
-        breakdownVendas: { dinheiro: 0, pix: 0, credito: 0, debito: 0 },
+        breakdownVendas: { dinheiro: 0, pix: 0, credito: 0, debito: 0, crediario: 0, taxa_servico: 0 },
         breakdownAnteriores: { dinheiro: 0, pix: 0, credito: 0, debito: 0 },
         breakdownDespesas: { dinheiro: 0, pix: 0, credito: 0, debito: 0 }
     },
@@ -27,29 +27,34 @@ const Caixa = {
             .thermal-print { display: none; }
             
             @media print { 
+                @page { margin: 0; size: 80mm auto; }
                 body * { visibility: hidden; height: 0; overflow: hidden; } 
                 .thermal-print, .thermal-print * { 
-                    visibility: visible; 
-                    display: block; 
-                    height: auto; 
+                    visibility: visible !important; 
+                    display: block !important; 
+                    height: auto !important; 
                 }
                 .thermal-print { 
                     position: absolute; 
                     left: 0; 
                     top: 0; 
-                    width: 100%; 
+                    width: 72mm; /* Largura útil padrão para bobina 80mm */
                     margin: 0; 
                     padding: 0; 
                     background: white; 
                     color: black !important;
-                    font-weight: 900 !important; 
-                    filter: contrast(200%) grayscale(100%);
-                    -webkit-print-color-adjust: exact;
+                    font-family: 'Courier New', Courier, monospace !important;
+                    font-weight: bold !important;
+                    font-size: 14px !important;
+                    line-height: 1.2 !important;
                 }
-                .thermal-print hr, .thermal-print div {
-                    border-color: #000 !important;
+                .thermal-print pre {
+                    white-space: pre-wrap !important;
+                    word-break: break-all !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    width: 100% !important;
                 }
-                @page { margin: 0; size: auto; }
             }
 
             /* --- 2. ESTILOS DA TELA (DARK MODE) --- */
@@ -544,7 +549,7 @@ const Caixa = {
         st.qtdVendas = 0;
         st.entradasAnteriores = 0;
         st.totalDespesas = 0;
-        st.breakdownVendas = { dinheiro: 0, pix: 0, credito: 0, debito: 0, crediario: 0 };
+        st.breakdownVendas = { dinheiro: 0, pix: 0, credito: 0, debito: 0, crediario: 0, taxa_servico: 0 };
         st.breakdownAnteriores = { dinheiro: 0, pix: 0, credito: 0, debito: 0, crediario: 0 };
         st.breakdownDespesas = { dinheiro: 0, pix: 0, credito: 0, debito: 0, crediario: 0 };
 
@@ -553,8 +558,11 @@ const Caixa = {
             st.qtdVendas = sales.length;
             sales.forEach(o => {
                 let val = parseFloat(o.total_pago || o.total || 0);
-
-                // Tenta pegar detalhe de pagamento (Do JSON ou da Coluna)
+                
+                // Se o total_pago for exatamente o valor total e houver taxa_servico separada, 
+                // subtraímos para conferência de caixa se o lojista não considerar gorjeta no caixa físico
+                const taxaServico = parseFloat(o.taxa_servico || 0);
+                st.breakdownVendas.taxa_servico += taxaServico;
                 let methods = [];
 
                 // Prioridade 1: JSON na observação (PDV V2 salva assim)
@@ -613,6 +621,8 @@ const Caixa = {
                     } else if (t.includes('crédito') || t.includes('credito') || t === 'credit' || t.includes('cartão') || t.includes('cartao')) {
                         st.breakdownVendas.credito += v;
                     } else {
+                        // Se houver taxa_servico e o pagamento for em dinheiro, 
+                        // precisamos saber se a taxa deve ser considerada "dinheiro de gaveta"
                         st.breakdownVendas.dinheiro += v;
                     }
                 });
@@ -778,10 +788,14 @@ const Caixa = {
             const dataFechamento = new Date();
 
             // 🔥 ESPERADO NA GAVETA
-            const esperadoGaveta = fundo + st.breakdownVendas.dinheiro + st.breakdownAnteriores.dinheiro - st.breakdownDespesas.dinheiro;
+            const brutoGaveta = fundo + st.breakdownVendas.dinheiro + st.breakdownAnteriores.dinheiro - st.breakdownDespesas.dinheiro;
+            const taxa = st.breakdownVendas.taxa_servico || 0;
+            
+            // Sugerimos que a taxa já saiu se for restaurante/com motoboy
+            const esperadoGaveta = brutoGaveta - taxa; 
             const dV = contado - esperadoGaveta;
 
-            const resumoCompleto = { ...st, esperadoGaveta, contado, diferenca: dV, fundo };
+            const resumoCompleto = { ...st, brutoGaveta, esperadoGaveta, taxa_servico: taxa, contado, diferenca: dV, fundo };
 
             // 2. 🔥 ATUALIZA BANCO PRIMEIRO (Garantia de dados)
             const totalGeralMovimentado = st.vendasHoje + st.entradasAnteriores;
@@ -895,9 +909,8 @@ const Caixa = {
             ${linha('Gaveta Esperada:', r.esperadoGaveta)}
             ${linha('Informado (Contagem):', r.contado)}
             <tr class="destaque" style="background:${r.diferenca < 0 ? '#ffe0e0' : '#e0ffe0'}">
-                <td>DIFERENÇA:</td>
-                <td style="text-align:right;">${fmt(r.diferenca)}</td>
-            </tr>
+            ${linha('Diferença:', r.diferenca)}
+            ${r.breakdownVendas.taxa_servico > 0 ? `<tr style="color:#666; font-size:11px;"><td>(Inclui Taxas de Serviço:</td><td style="text-align:right;">${fmt(r.breakdownVendas.taxa_servico)})</td></tr>` : ''}
         </table>
         <div style="margin-top:40px; border-top:2px solid #000; width:70%; margin-left:auto; text-align:center; padding-top:5px; font-size:13px;">Assinatura Responsável</div>
         <div class="footer">Gerado em: ${new Date().toLocaleString('pt-BR')} | Naxio System</div>
@@ -981,8 +994,16 @@ const Caixa = {
 
         out += linha("GAVETA ESPERADO:", r.esperadoGaveta);
         out += center("(Fundo + Dinheiro - Desp.Din)");
+        if (r.taxa_servico > 0) {
+            out += center(`Obs: R$ ${r.taxa_servico.toFixed(2)} de Taxa de Servico`);
+            out += center(`foi deduzido do esperado acima.`);
+        }
         out += linha("INFORMADO:", r.contado);
         out += linha("DIFERENÇA:", r.diferenca);
+        if (r.breakdownVendas.taxa_servico > 0) {
+            out += center(`Obs: Taxa de Servico: ${fmt(r.breakdownVendas.taxa_servico)}`);
+            out += center(`ja inclusa nos totais acima.`);
+        }
         out += separator;
         
         out += '\n';
@@ -992,7 +1013,7 @@ const Caixa = {
         out += center('Naxio System Enterprise');
         out += '\n';
 
-        return `<pre style="font-family: 'Courier New', monospace; font-size: 14px; font-weight: bold; line-height: 1.4; color: #000; margin: 0; padding: 10px; width: 100%; white-space: pre-wrap; word-break: break-all;">${out}</pre>`;
+        return `<pre style="font-family: 'Courier Prime', 'Courier New', monospace; font-size: 12px; font-weight: bold; line-height: 1.2; color: #000; margin: 0; padding: 0; width: 72mm; white-space: pre-wrap; word-break: break-all; background: #fff;">${out}</pre>`;
     },
 
     printParcial: async () => {
