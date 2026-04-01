@@ -650,6 +650,7 @@ const Varejo = {
                 const orderSnapshot = {
                     store_id: App.state.storeId,
                     total_pago: Varejo.state.totalTicket - desc,
+                    taxa_servico: 0, // No varejo costuma ser zero ou fixo, campo garantido agora
                     status: 'concluido',
                     origem_venda: 'pdv',
                     metodo_pagamento: pays.length > 1 ? 'Múltiplos' : (pays[0]?.tipo || 'Desconto'),
@@ -692,21 +693,23 @@ const Varejo = {
                 Varejo.state.ticket = [];
                 Varejo.state.currentCliente = null;
                 Varejo.renderTicket();
-                Varejo._atualizarPainelCliente();
-
-                Varejo.printReceipt(data, ticketCopy, pays, desc, savedCliente);
-
-                // NFC-e
-                if (typeof Fiscal !== 'undefined') {
-                    const querEmitir = await NaxioUI.confirm('🧾 Emitir NFC-e?', 'Deseja gerar a nota fiscal fiscal agora?', 'Sim, Emitir', 'Não, Apenas Recibo');
+                // NFC-e e Impressão
+                if (typeof Fiscal !== 'undefined' && (App.state.currentStore?.nuvem_client_id || App.state.storeId)) {
+                    const querEmitir = await NaxioUI.confirm('🧾 Emitir NFC-e?', 'Deseja gerar a nota fiscal agora?', 'Sim, Emitir', 'Não, Apenas Recibo');
                     if (querEmitir) {
                         const pmts = pays.map(p => ({
-                            code: p.tipo, valor: p.val,
-                            aut: (p.tipo !== 'Dinheiro' && p.tipo !== 'Pix') ? aut : null,
-                            nsu: (p.tipo !== 'Dinheiro' && p.tipo !== 'Pix') ? nsu : null
+                            tipo: (p.tipo === 'Crediário' || p.tipo === 'Nota') ? '05' : '01', // Mapeamento básico
+                            val: p.val.toFixed(2),
+                            tipo_original: p.tipo
                         }));
                         Fiscal.emitirNFCe(data.id, orderSnapshot.total_pago, pmts, ticketCopy.map(i => ({ id: i.id, nome: i.nome, price: i.preco, qtd: 1 })));
+                    } else {
+                        // Se clicou em "Apenas Recibo", imprime direto sem perguntar de novo
+                        Varejo.printReceipt(data, ticketCopy, pays, desc, savedCliente, installments);
                     }
+                } else {
+                    // Sem módulo fiscal ou desativado, imprime recibo direto
+                    Varejo.printReceipt(data, ticketCopy, pays, desc, savedCliente, installments);
                 }
             } catch (err) {
                 console.error("Erro Finalização:", err);
@@ -769,12 +772,12 @@ const Varejo = {
 
     startClock: () => setInterval(() => { const el = document.getElementById('pos-clock'); if (el) el.innerText = new Date().toLocaleTimeString('pt-BR'); }, 1000),
 
-    printReceipt: (order, items, pays, desc) => {
-        const win = window.open('', '', 'width=450,height=700');
-        const storeName = App.state.storeName || 'MINHA LOJA';
+    printReceipt: (order, items, pays, desc, cliente, installments = []) => {
+        const win = window.open('', '', 'width=800,height=600');
+        const storeName = (App.state.currentStore?.nome_loja) || App.state.storeName || 'MINHA LOJA';
         const date = new Date().toLocaleString('pt-BR');
 
-        // Agrupa itens para o recibo
+        // Agrupa itens para o recibo para economizar papel
         const grouped = [];
         items.forEach(i => {
             const ex = grouped.find(g => g.id === i.id);
@@ -782,51 +785,83 @@ const Varejo = {
             else { grouped.push({ ...i, qtd: 1, total: i.preco }); }
         });
 
+        // Detalhes do Crediário
+        let installmentsHtml = '';
+        if (installments && installments.length > 0) {
+            installmentsHtml = `
+                <div class="sep"></div>
+                <div class="bold">PLANOS DE PAGAMENTO (CREDIÁRIO):</div>
+                ${installments.map(ins => `
+                    <div class="item" style="font-size:12px;">
+                        <span>Parc. ${ins.parcela} (${new Date(ins.vencimento + 'T12:00:00').toLocaleDateString('pt-BR')})</span>
+                        <span>${parseFloat(ins.valor).toFixed(2)}</span>
+                    </div>
+                `).join('')}
+            `;
+        }
+
         const html = `
             <!DOCTYPE html>
             <html>
             <head>
                 <style>
                     @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap');
-                    * { margin: 0; padding: 0; box-sizing: border-box; }
-                    body { font-family: 'Courier Prime', 'Courier New', monospace; padding: 5mm; color: #000; font-size: 13px; line-height: 1.4; width: 80mm; margin: 0 auto; -webkit-print-color-adjust: exact; }
+                    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Courier Prime', Courier, monospace !important; }
+                    body { 
+                        width: 100%;
+                        max-width: 80mm;
+                        margin: 0 auto; 
+                        padding: 10px; 
+                        color: #000; 
+                        background: #fff;
+                        font-size: 12px; 
+                        line-height: 1.2; 
+                        -webkit-print-color-adjust: exact; 
+                    }
                     .center { text-align: center; }
-                    .bold { font-weight: bold; }
+                    .bold { font-weight: bold; font-size: 15px; }
                     .sep { border-top: 1px dashed #000; margin: 8px 0; }
                     .item { display: flex; justify-content: space-between; margin-bottom: 4px; }
-                    .footer { font-size: 10px; margin-top: 15px; padding-bottom: 10px; }
-                    .no-print { margin-top: 20px; text-align: center; }
-                    .no-print button { padding: 8px 15px; cursor: pointer; margin: 5px; }
+                    .footer { font-size: 11px; margin-top: 15px; padding-bottom: 20px; border-top: 1px solid #000; padding-top: 10px; }
                     
                     @page { margin: 0; size: 80mm auto; }
                     @media print { 
-                        body { width: 100%; padding: 0; margin: 0; } 
+                        body { width: 80mm; padding: 10px; margin: 0; } 
                         .no-print { display: none; } 
                     }
+                    .no-print { margin-top: 20px; text-align: center; background: #f0f0f0; padding: 10px; border-radius: 8px; }
+                    .no-print button { padding: 10px 20px; cursor: pointer; margin: 5px; background: #000; color: #fff; border: none; border-radius: 5px; font-weight: bold; }
                 </style>
             </head>
             <body>
-                <div class="center bold" style="font-size: 16px;">${storeName}</div>
+                <div class="center bold" style="font-size: 18px;">${storeName.toUpperCase()}</div>
                 <div class="center">COMPROVANTE DE VENDA</div>
                 <div class="sep"></div>
-                <div>DATA: ${date}</div>
-                <div>PEDIDO: #${order.id.toString().slice(-6).toUpperCase()}</div>
-                <div>CLIENTE: ${Varejo.state.currentCliente?.nome_completo || 'CONSUMIDOR FINAL'}</div>
+                <div style="font-size:12px;">
+                    <div>DATA: ${date}</div>
+                    <div>PEDIDO: #${order.id.toString().slice(-6).toUpperCase()}</div>
+                    <div>CLIENTE: ${cliente?.nome_completo || 'CONSUMIDOR FINAL'}</div>
+                </div>
                 <div class="sep"></div>
                 <div class="bold">ITENS:</div>
+                <div style="font-size:13px;">
                 ${grouped.map(i => `
                     <div class="item">
-                        <span>${i.qtd}x ${i.nome.slice(0, 20)}</span>
+                        <span>${i.qtd}x ${i.nome.slice(0, 30)}</span>
                         <span>${i.total.toFixed(2)}</span>
                     </div>
                 `).join('')}
+                </div>
                 <div class="sep"></div>
-                <div class="item bold"><span>SUBTOTAL:</span> <span>${Varejo.state.totalTicket.toFixed(2)}</span></div>
+                <div class="item bold"><span>SUBTOTAL:</span> <span>${(Varejo.state.totalTicket || 0).toFixed(2)}</span></div>
                 ${desc > 0 ? `<div class="item"><span>DESCONTO:</span> <span>- ${desc.toFixed(2)}</span></div>` : ''}
-                <div class="item bold" style="font-size: 16px;"><span>TOTAL:</span> <span>${(Varejo.state.totalTicket - desc).toFixed(2)}</span></div>
+                <div class="item bold" style="font-size: 18px;"><span>TOTAL:</span> <span>${(order.total_pago).toFixed(2)}</span></div>
                 <div class="sep"></div>
                 <div class="bold">PAGAMENTO:</div>
                 ${pays.map(p => `<div class="item"><span>${p.tipo}:</span> <span>${p.val.toFixed(2)}</span></div>`).join('')}
+                
+                ${installmentsHtml}
+
                 <div class="sep"></div>
                 <div class="center footer">
                     Obrigado pela preferência!<br>
