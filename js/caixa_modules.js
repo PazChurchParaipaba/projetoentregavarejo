@@ -9,7 +9,7 @@ const Caixa = {
         qtdVendas: 0,
         entradasAnteriores: 0,
         totalDespesas: 0,
-        breakdownVendas: { dinheiro: 0, pix: 0, credito: 0, debito: 0, crediario: 0, taxa_servico: 0 },
+        breakdownVendas: { dinheiro: 0, pix: 0, credito: 0, debito: 0 },
         breakdownAnteriores: { dinheiro: 0, pix: 0, credito: 0, debito: 0 },
         breakdownDespesas: { dinheiro: 0, pix: 0, credito: 0, debito: 0 }
     },
@@ -27,34 +27,29 @@ const Caixa = {
             .thermal-print { display: none; }
             
             @media print { 
-                @page { margin: 0; size: 80mm auto; }
                 body * { visibility: hidden; height: 0; overflow: hidden; } 
                 .thermal-print, .thermal-print * { 
-                    visibility: visible !important; 
-                    display: block !important; 
-                    height: auto !important; 
+                    visibility: visible; 
+                    display: block; 
+                    height: auto; 
                 }
                 .thermal-print { 
                     position: absolute; 
                     left: 0; 
                     top: 0; 
-                    width: 72mm; /* Largura útil padrão para bobina 80mm */
+                    width: 100%; 
                     margin: 0; 
                     padding: 0; 
                     background: white; 
                     color: black !important;
-                    font-family: 'Courier New', Courier, monospace !important;
-                    font-weight: bold !important;
-                    font-size: 14px !important;
-                    line-height: 1.2 !important;
+                    font-weight: 900 !important; 
+                    filter: contrast(200%) grayscale(100%);
+                    -webkit-print-color-adjust: exact;
                 }
-                .thermal-print pre {
-                    white-space: pre-wrap !important;
-                    word-break: break-all !important;
-                    margin: 0 !important;
-                    padding: 0 !important;
-                    width: 100% !important;
+                .thermal-print hr, .thermal-print div {
+                    border-color: #000 !important;
                 }
+                @page { margin: 0; size: auto; }
             }
 
             /* --- 2. ESTILOS DA TELA (DARK MODE) --- */
@@ -260,24 +255,23 @@ const Caixa = {
                     <div class="stat-box">
                         <h5>Fundo Inicial</h5>
                         <div class="stat-val" style="color:#64748b; display:flex; justify-content:center; align-items:center; gap:8px;">
-                            <span>${session.valor_inicial.toFixed(2)}</span>
+                            <span>R$ ${session.valor_inicial.toFixed(2)}</span>
                             <button class="btn-icon" onclick="Caixa.editFundoInicial()" title="Editar Fundo Inicial" style="padding:0; margin:0;"><i class="ri-edit-line" style="font-size:1.1rem; color:var(--primary);"></i></button>
                         </div>
                     </div>
                     <div class="stat-box">
                         <h5>Vendas do Dia</h5>
-                        <div class="stat-val" style="color:#10b981;">${st.vendasHoje.toFixed(2)}</div>
+                        <div class="stat-val" style="color:#10b981;">R$ ${st.vendasHoje.toFixed(2)}</div>
                         <div style="font-size:0.75rem; color:#64748b; margin-top:5px;">
                             <i class="ri-bill-line"></i> ${st.qtdVendas} Pagamentos<br>
                             💵 ${st.breakdownVendas.dinheiro.toFixed(2)} | 
                             💠 ${st.breakdownVendas.pix.toFixed(2)}<br>
                             💳 ${(st.breakdownVendas.credito + st.breakdownVendas.debito).toFixed(2)}
-                            ${st.breakdownVendas.crediario > 0 && !App.utils.isRestaurante() ? `<br><span style="color:#f59e0b; font-weight:800;">🗒️ Crediário: ${st.breakdownVendas.crediario.toFixed(2)}</span>` : ''}
                         </div>
                     </div>
                     <div class="stat-box">
                         <h5>Entradas Anteriores</h5>
-                        <div class="stat-val" style="color:#3b82f6;">${st.entradasAnteriores.toFixed(2)}</div>
+                        <div class="stat-val" style="color:#3b82f6;">R$ ${st.entradasAnteriores.toFixed(2)}</div>
                         <div style="font-size:0.75rem; color:#64748b; margin-top:5px;">
                             💵 ${st.breakdownAnteriores.dinheiro.toFixed(2)} | 
                             💠 ${st.breakdownAnteriores.pix.toFixed(2)}
@@ -524,19 +518,24 @@ const Caixa = {
         if (!Caixa.state.session) return;
 
         // 1. Busca VENDAS (Orders)
-        // 🔥 CORREÇÃO: Busca por session_id OU por intervalo de tempo da sessão se o session_id falhar / for nulo em algumas vendas.
+        // 🔥 CORREÇÃO: Busca por session_id OU por intervalo de tempo da sessão se o session_id falhar.
         // Isso garante que vendas feitas sem o session_id vinculado (ex: erro de rede no momento) sejam contadas.
-        const fim = Caixa.state.session.fechamento || new Date().toISOString();
-        const start = Caixa.state.session.abertura || Caixa.state.session.created_at;
-
         let { data: sales, error: salesErr } = await _sb.from('orders')
             .select('*')
             .eq('store_id', App.state.storeId)
-            .eq('status', 'concluido')
-            .gte('created_at', start)
-            .lte('created_at', fim)
-            .or(`session_id.eq.${Caixa.state.session.id},session_id.is.null`);
+            .eq('session_id', Caixa.state.session.id)
+            .eq('status', 'concluido');
 
+        if (!sales || sales.length === 0) {
+            const fim = Caixa.state.session.fechamento || new Date().toISOString();
+            const { data: salesFallback } = await _sb.from('orders')
+                .select('*')
+                .eq('store_id', App.state.storeId)
+                .gte('created_at', Caixa.state.session.abertura || Caixa.state.session.created_at)
+                .lte('created_at', fim)
+                .eq('status', 'concluido');
+            sales = salesFallback || [];
+        }
 
         // 2. Busca MOVIMENTAÇÕES (Entradas e Despesas)
         const { data: moves } = await _sb.from('cash_movements')
@@ -549,27 +548,24 @@ const Caixa = {
         st.qtdVendas = 0;
         st.entradasAnteriores = 0;
         st.totalDespesas = 0;
-        st.breakdownVendas = { dinheiro: 0, pix: 0, credito: 0, debito: 0, crediario: 0, taxa_servico: 0 };
-        st.breakdownAnteriores = { dinheiro: 0, pix: 0, credito: 0, debito: 0, crediario: 0 };
-        st.breakdownDespesas = { dinheiro: 0, pix: 0, credito: 0, debito: 0, crediario: 0 };
+        st.breakdownVendas = { dinheiro: 0, pix: 0, credito: 0, debito: 0 };
+        st.breakdownAnteriores = { dinheiro: 0, pix: 0, credito: 0, debito: 0 };
+        st.breakdownDespesas = { dinheiro: 0, pix: 0, credito: 0, debito: 0 };
 
         // 🔥 PROCESSA VENDAS (Comandas + PDV)
         if (sales) {
             st.qtdVendas = sales.length;
             sales.forEach(o => {
                 let val = parseFloat(o.total_pago || o.total || 0);
-                
-                // Se o total_pago for exatamente o valor total e houver taxa_servico separada, 
-                // subtraímos para conferência de caixa se o lojista não considerar gorjeta no caixa físico
-                const taxaServico = parseFloat(o.taxa_servico || 0);
-                st.breakdownVendas.taxa_servico += taxaServico;
+
+                // Tenta pegar detalhe de pagamento (Do JSON ou da Coluna)
                 let methods = [];
 
                 // Prioridade 1: JSON na observação (PDV V2 salva assim)
                 try {
                     const obs = JSON.parse(o.observacao || '{}');
-                    if (obs.pays && Array.isArray(obs.pays)) {
-                        methods = obs.pays; // [{tipo, val}]
+                    if (obs.pagamentos && Array.isArray(obs.pagamentos)) {
+                        methods = obs.pagamentos; // [{tipo, val}]
                     }
                 } catch (e) { }
 
@@ -614,15 +610,11 @@ const Caixa = {
 
                     if (t.includes('pix')) {
                         st.breakdownVendas.pix += v;
-                    } else if (t.includes('crediário') || t.includes('crediario') || t.includes('nota') || t.includes('prazo')) {
-                        st.breakdownVendas.crediario += v;
                     } else if (t.includes('débito') || t.includes('debito') || t === 'debit') {
                         st.breakdownVendas.debito += v;
                     } else if (t.includes('crédito') || t.includes('credito') || t === 'credit' || t.includes('cartão') || t.includes('cartao')) {
                         st.breakdownVendas.credito += v;
                     } else {
-                        // Se houver taxa_servico e o pagamento for em dinheiro, 
-                        // precisamos saber se a taxa deve ser considerada "dinheiro de gaveta"
                         st.breakdownVendas.dinheiro += v;
                     }
                 });
@@ -788,14 +780,10 @@ const Caixa = {
             const dataFechamento = new Date();
 
             // 🔥 ESPERADO NA GAVETA
-            const brutoGaveta = fundo + st.breakdownVendas.dinheiro + st.breakdownAnteriores.dinheiro - st.breakdownDespesas.dinheiro;
-            const taxa = st.breakdownVendas.taxa_servico || 0;
-            
-            // Sugerimos que a taxa já saiu se for restaurante/com motoboy
-            const esperadoGaveta = brutoGaveta - taxa; 
+            const esperadoGaveta = fundo + st.breakdownVendas.dinheiro + st.breakdownAnteriores.dinheiro - st.breakdownDespesas.dinheiro;
             const dV = contado - esperadoGaveta;
 
-            const resumoCompleto = { ...st, brutoGaveta, esperadoGaveta, taxa_servico: taxa, contado, diferenca: dV, fundo };
+            const resumoCompleto = { ...st, esperadoGaveta, contado, diferenca: dV, fundo };
 
             // 2. 🔥 ATUALIZA BANCO PRIMEIRO (Garantia de dados)
             const totalGeralMovimentado = st.vendasHoje + st.entradasAnteriores;
@@ -820,18 +808,18 @@ const Caixa = {
 
             if (await NaxioUI.confirm("Imprimir Fechamento?", "O caixa foi fechado. Deseja imprimir o ticket de fechamento (térmico)?")) {
                 const content = Caixa.generateContent(resumoCompleto);
+                // Usa janela externa para evitar que o render() limpe o conteudo antes de imprimir
                 const win = window.open('', '_blank');
                 win.document.write(`
                     <html>
                     <head>
                         <title>Fechamento de Caixa</title>
                         <style>
-                            @page { margin: 0; size: 80mm auto; }
-                            body { margin: 0; padding: 0; width: 100%; max-width: 80mm; background: #fff; font-family: 'Courier Prime', 'Courier New', Courier, monospace; color: #000; }
-                            * { font-family: 'Courier Prime', 'Courier New', Courier, monospace !important; box-sizing: border-box; }
+                            body { margin: 0; padding: 0; background: #fff; }
+                            @media print { @page { margin: 0; } }
                         </style>
                     </head>
-                    <body onload="setTimeout(function(){ window.print(); window.close(); }, 800);">
+                    <body onload="window.print(); window.close();">
                         ${content}
                     </body>
                     </html>
@@ -852,8 +840,7 @@ const Caixa = {
     // 🔥 GERA PDF VIA JANELA DE IMPRESSÃO NOMEADA
     gerarPdfFechamento: (r, nomeArquivo) => {
         const loja = App.state.currentStore?.nome_loja || 'Minha Loja';
-        const isRestaurante = App.utils.isRestaurante();
-        const fmt = (v) => `${(v || 0).toFixed(2)}`;
+        const fmt = (v) => `R$ ${(v || 0).toFixed(2)}`;
         const linha = (l, v) => `<tr><td style="padding:3px 0;">${l}</td><td style="text-align:right; font-weight:bold;">${fmt(v)}</td></tr>`;
 
         const htmlPdf = `
@@ -886,7 +873,6 @@ const Caixa = {
             ${linha('Pix:', r.breakdownVendas.pix)}
             ${linha('Crédito:', r.breakdownVendas.credito)}
             ${linha('Débito:', r.breakdownVendas.debito)}
-            ${!isRestaurante ? linha('Crediário:', r.breakdownVendas.crediario) : ''}
             <tr class="destaque"><td>TOTAL VENDAS:</td><td style="text-align:right;">${fmt(r.vendasHoje)}</td></tr>
         </table>
         <h3>ENTRADAS ANTERIORES</h3>
@@ -909,8 +895,9 @@ const Caixa = {
             ${linha('Gaveta Esperada:', r.esperadoGaveta)}
             ${linha('Informado (Contagem):', r.contado)}
             <tr class="destaque" style="background:${r.diferenca < 0 ? '#ffe0e0' : '#e0ffe0'}">
-            ${linha('Diferença:', r.diferenca)}
-            ${r.breakdownVendas.taxa_servico > 0 ? `<tr style="color:#666; font-size:11px;"><td>(Inclui Taxas de Serviço:</td><td style="text-align:right;">${fmt(r.breakdownVendas.taxa_servico)})</td></tr>` : ''}
+                <td>DIFERENÇA:</td>
+                <td style="text-align:right;">${fmt(r.diferenca)}</td>
+            </tr>
         </table>
         <div style="margin-top:40px; border-top:2px solid #000; width:70%; margin-left:auto; text-align:center; padding-top:5px; font-size:13px;">Assinatura Responsável</div>
         <div class="footer">Gerado em: ${new Date().toLocaleString('pt-BR')} | Naxio System</div>
@@ -924,96 +911,64 @@ const Caixa = {
         }
     },
 
-    // 🔥 GERAÇÃO DE CONTEÚDO DETALHADO E BLINDADO PARA TECTOY (FORMATO TEXTO PURO MONOSPACE)
+    // 🔥 GERAÇÃO DE CONTEÚDO DETALHADO
     generateContent: (r) => {
-        let loja = App.state.currentStore?.nome_loja || App.state.currentStore?.nome || App.state.profile?.nome_loja || "MINHA LOJA";
-        if (typeof loja !== 'string' || loja.trim() === '') loja = "MINHA LOJA";
-
-        // Convertendo strings sensíveis a problemas de conversão ESC/POS
-        const removeAccents = (str) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        const lojaFormatada = removeAccents(loja).toUpperCase();
-        
-        const dataStr = new Date().toLocaleString('pt-BR');
+        const loja = App.state.currentStore?.nome_loja || "Minha Loja";
+        const data = new Date().toLocaleString();
         const fmt = (v) => `R$ ${(v || 0).toFixed(2)}`;
-        
-        // Define largura total de 40 colunas para impressora térmica
-        const width = 40;
-        
-        const separator = '-'.repeat(width) + '\n';
-        const opName = removeAccents(r.session.nome || 'cx ' + r.session.id);
-        
-        // Centraliza texto
-        const center = (text) => {
-            if (text.length >= width) return text.substring(0, width) + '\n';
-            const pad = Math.floor((width - text.length) / 2);
-            return ' '.repeat(pad) + text + '\n';
-        };
+        const linha = (l, v) => `<div style="display:flex; justify-content:space-between;"><span>${l}</span><span>${fmt(v)}</span></div>`;
+        const div = `<div style="border-top:1px dashed #000; margin:5px 0;"></div>`;
 
-        // Linha com justificativa (Label à esquerda, valor à direita)
-        const linha = (lbl, valStr) => {
-            const valFormated = typeof valStr === 'number' ? fmt(valStr) : valStr;
-            const espacos = width - lbl.length - valFormated.length;
-            if (espacos > 0) {
-                return lbl + ' '.repeat(espacos) + valFormated + '\n';
-            }
-            return lbl + ' ' + valFormated + '\n';
-        };
-
-        let out = '';
-        out += center("FECHAMENTO DE CAIXA");
-        out += center(lojaFormatada);
-        out += '\n';
-        out += center(dataStr);
-        out += center(`OP: ${opName}`);
-        out += separator;
-
-        out += linha("Fundo Inicial:", r.fundo);
-        out += separator;
-
-        out += "VENDAS HOJE\n";
-        out += linha("Dinheiro:", r.breakdownVendas.dinheiro);
-        out += linha("Pix:", r.breakdownVendas.pix);
-        out += linha("Crédito:", r.breakdownVendas.credito);
-        out += linha("Débito:", r.breakdownVendas.debito);
-        out += linha("Crediário:", r.breakdownVendas.crediario);
-        out += linha("TOTAL VENDAS:", r.vendasHoje);
-        out += separator;
-
-        out += "ENTRADAS (DIAS ANT.)\n";
-        out += linha("Dinheiro:", r.breakdownAnteriores.dinheiro);
-        out += linha("Pix:", r.breakdownAnteriores.pix);
-        out += linha("Cartão:", r.breakdownAnteriores.credito + r.breakdownAnteriores.debito);
-        out += linha("TOTAL ENTRADAS:", r.entradasAnteriores);
-        out += separator;
-
-        out += "DESPESAS / SANGRIA\n";
-        out += linha("Dinheiro:", r.breakdownDespesas.dinheiro);
-        out += linha("Outros:", r.totalDespesas - r.breakdownDespesas.dinheiro);
-        out += linha("TOTAL DESPESAS:", r.totalDespesas);
-        out += separator;
-
-        out += linha("GAVETA ESPERADO:", r.esperadoGaveta);
-        out += center("(Fundo + Dinheiro - Desp.Din)");
-        if (r.taxa_servico > 0) {
-            out += center(`Obs: R$ ${r.taxa_servico.toFixed(2)} de Taxa de Servico`);
-            out += center(`foi deduzido do esperado acima.`);
-        }
-        out += linha("INFORMADO:", r.contado);
-        out += linha("DIFERENÇA:", r.diferenca);
-        if (r.breakdownVendas.taxa_servico > 0) {
-            out += center(`Obs: Taxa de Servico: ${fmt(r.breakdownVendas.taxa_servico)}`);
-            out += center(`ja inclusa nos totais acima.`);
-        }
-        out += separator;
-        
-        out += '\n';
-        out += center('______________________________________');
-        out += center('Assinatura Responsável');
-        out += '\n';
-        out += center('Naxio System Enterprise');
-        out += '\n';
-
-        return `<pre style="font-family: 'Courier Prime', 'Courier New', monospace; font-size: 12px; font-weight: bold; line-height: 1.2; color: #000; margin: 0; padding: 0; width: 72mm; white-space: pre-wrap; word-break: break-all; background: #fff;">${out}</pre>`;
+        return `
+            <div style="font-family:'Courier New'; width:300px; font-weight:bold; color:#000;">
+                <center>
+                    <h2 style="margin:0;">FECHAMENTO CAIXA</h2>
+                    <div style="font-size: 14px; text-transform:uppercase;">${loja}</div>
+                    <div style="font-size:12px;">${data}</div>
+                    <div style="font-size:12px; margin-top:5px;">OP: ${r.session.nome || 'Caixa ' + r.session.id}</div>
+                </center>
+                ${div}
+                ${linha('Fundo Inicial:', r.fundo)}
+                ${div}
+                
+                <div style="text-decoration:underline; font-size:14px;">VENDAS HOJE</div>
+                ${linha('Dinheiro:', r.breakdownVendas.dinheiro)}
+                ${linha('Pix:', r.breakdownVendas.pix)}
+                ${linha('Crédito:', r.breakdownVendas.credito)}
+                ${linha('Débito:', r.breakdownVendas.debito)}
+                ${linha('TOTAL VENDAS:', r.vendasHoje)}
+                ${div}
+                
+                <div style="text-decoration:underline; font-size:14px;">ENTRADAS (DIAS ANT.)</div>
+                ${linha('Dinheiro:', r.breakdownAnteriores.dinheiro)}
+                ${linha('Pix:', r.breakdownAnteriores.pix)}
+                ${linha('Cartão:', r.breakdownAnteriores.credito + r.breakdownAnteriores.debito)}
+                ${linha('TOTAL ENTRADAS:', r.entradasAnteriores)}
+                ${div}
+                
+                <div style="text-decoration:underline; font-size:14px;">DESPESAS / SANGRIA</div>
+                ${linha('Dinheiro:', r.breakdownDespesas.dinheiro)}
+                ${linha('Outros:', r.totalDespesas - r.breakdownDespesas.dinheiro)}
+                ${linha('TOTAL DESPESAS:', r.totalDespesas)}
+                ${div}
+                
+                <div style="font-size:1.1rem; margin-top:5px;">
+                    ${linha('GAVETA ESPERADO:', r.esperadoGaveta)}
+                    <div style="font-size:10px; text-align:right; margin:2px 0;">(Fundo + Dinheiro - Desp.Din)</div>
+                    ${linha('INFORMADO:', r.contado)}
+                    ${linha('DIFERENÇA:', r.diferenca)}
+                </div>
+                ${div}
+                
+                <div style="margin-top: 30px; text-align:center;">
+                    <div style="border-top: 2px solid black; width: 90%; margin: 0 auto 5px auto;"></div>
+                    <span style="font-size: 14px;">Assinatura Responsável</span>
+                </div>
+                <br>
+                <div style="text-align:center; font-size:10px;">Naxio System Enterprise</div>
+                <br>.
+            </div>
+        `;
     },
 
     printParcial: async () => {
