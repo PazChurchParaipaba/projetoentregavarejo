@@ -1,0 +1,340 @@
+/* ==========================================================================
+   AUTOPEÇAS PRO - CSS DE MELHORIAS
+   Focado em Transparência, Estética e Novas Funcionalidades
+   ========================================================================== */
+
+/* ========== DESIGN SYSTEM: PRO & MODERADO ========== */
+:root {
+    --font-base: 16px;
+    --font-lg: 18px;
+    --font-xl: 20px;
+    --btn-height: 52px;
+    --input-height: 52px;
+    --radius-card: 14px;
+    --primary-pro: #06b6d4;
+    --surface-pro: #1e293b;
+}
+
+/* Tamanhos de Fonte Padrão */
+html {
+    font-size: var(--font-base);
+}
+
+/* Inputs Padronizados */
+.input-field {
+    padding: 0.75rem 1rem !important;
+    font-size: 1rem !important;
+    min-height: var(--input-height);
+    background: #1e293b !important;
+    border: 1px solid #334155 !important;
+    color: #fff !important;
+    border-radius: 10px !important;
+}
+
+/* Botões Padronizados */
+.btn {
+    padding: 0.75rem 1.25rem !important;
+    font-size: 0.95rem !important;
+    min-height: var(--btn-height);
+    font-weight: 600 !important;
+    border-radius: 10px !important;
+}
+
+/* ========== LAYOUT PAINEL: FULL WIDTH E UMA LINHA ========== */
+.painel-layout-container {
+    display: flex;
+    flex-direction: column; /* Info em cima, Grid embaixo para ganhar largura */
+    gap: 15px;
+    align-items: flex-start;
+    padding: 0;
+    margin-top: -10px;
+    width: 100%;
+}
+
+.painel-side-info {
+    width: 100%;
+    text-align: left;
+    display: flex !important;
+    flex-direction: row !important; /* Força tudo em uma linha */
+    align-items: center !important;
+    gap: 20px !important;
+}
+
+.painel-title {
+    margin: 0 !important;
+    font-size: 1.6rem !important;
+    font-weight: 800 !important;
+    color: #fff;
+    white-space: nowrap;
+}
+
+.store-name-display {
+    font-size: 1.6rem !important;
+    font-weight: 400 !important;
+    color: var(--primary) !important;
+    margin: 0 !important;
+    white-space: nowrap;
+}
+
+#current-operator-badge {
+    font-size: 1.1rem !important;
+    color: #4ade80 !important;
+    margin: 0 !important;
+    padding-left: 20px !important;
+    border-left: 1px solid rgba(255,255,255,0.2) !important;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.painel-actions-grid {
+    display: grid !important;
+    grid-template-columns: repeat(8, 1fr) !important; /* Voltando para 8 colunas */
+    gap: 15px !important;
+    padding: 15px 0 !important;
+    width: 100%;
+}
+
+.action-btn {
+    min-height: 150px !important; /* Altura ideal para 8 colunas */
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 15px !important;
+    gap: 10px !important;
+    font-size: 1rem !important; /* Fonte ajustada para largura maior */
+    font-weight: 700 !important;
+    border-radius: 20px !important;
+    background: linear-gradient(145deg, #1e293b, #0f172a) !important;
+    border: 1px solid rgba(255,255,255,0.05) !important;
+    box-shadow: 0 8px 12px -3px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255,255,255,0.05) !important;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+    position: relative;
+    overflow: hidden;
+}
+
+.action-btn::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 100%);
+    pointer-events: none;
+}
+
+.action-btn:hover {
+    transform: translateY(-5px) scale(1.05) !important;
+    box-shadow: 0 15px 25px -5px rgba(0, 0, 0, 0.5) !important;
+    border-color: rgba(255,255,255,0.2) !important;
+}
+
+.action-btn i {
+    font-size: 3rem !important; /* Ícones grandes para a escala 8x2 */
+    text-shadow: 0 0 10px rgba(0,0,0,0.5);
+    filter: drop-shadow(0 0 8px rgba(0,0,0,0.3));
+}
+
+.action-btn:hover i {
+    transform: rotate(-5deg) scale(1.1);
+}
+
+/* ========== CORES DOS ÍCONES (BOTÕES) - MAIS VIBRANTE ========== */
+.action-btn[onclick*="Caixa"] { background: #2563eb !important; border-color: #3b82f6 !important; }
+.action-btn[onclick*="PDV"] { background: #f97316 !important; border-color: #fb923c !important; }
+.action-btn[onclick*="Product"], .action-btn[onclick*="Produto"] { background: #0891b2 !important; border-color: #22d3ee !important; }
+.action-btn[onclick*="Consultar"] { background: #059669 !important; border-color: #10b981 !important; }
+.action-btn[onclick*="Relat"], .action-btn[onclick*="relatorios"] { background: #8b5cf6 !important; border-color: #a78bfa !important; }
+.action-btn[onclick*="Fiscal"] { background: #475569 !important; border-color: #64748b !important; }
+.action-btn[onclick*="OS"], .action-btn[onclick*="Ordem"] { background: #1e40af !important; border-color: #3b82f6 !important; }
+.action-btn[onclick*="nfe-b2b"], .action-btn[onclick*="Grande"] { background: #db2777 !important; border-color: #f472b6 !important; }
+.action-btn[onclick*="Config"], .action-btn[onclick*="Settings"] { background: #64748b !important; border-color: #94a3b8 !important; }
+.action-btn[onclick*="CSV"] { background: #0d9488 !important; }
+.action-btn[onclick*="Equipe"], .action-btn[onclick*="Staff"] { background: #4f46e5 !important; }
+.action-btn[onclick*="Folha"] { background: #16a34a !important; }
+.action-btn[onclick*="Lojista"] { background: #334155 !important; }
+.action-btn[onclick*="Avancada"] { background: #7c3aed !important; }
+.action-btn[onclick*="Impressoras"] { background: #52525b !important; }
+.action-btn[onclick*="Importar"] { background: #0369a1 !important; }
+.action-btn[onclick*="Financeiro"], .action-btn[onclick*="Vales"] { background: #c2410c !important; }
+
+/* Responsividade: Volta para vertical em telas pequenas */
+@media (max-width: 1200px) {
+    .painel-layout-container {
+        flex-direction: column;
+    }
+    .painel-actions-grid {
+        grid-template-columns: repeat(3, 1fr) !important;
+    }
+}
+
+/* ========== MODAIS: TAMANHOS ORIGINAIS ========== */
+.modal-content {
+    width: 90% !important;
+    max-width: 850px !important;
+    height: auto !important;
+    max-height: 90vh !important;
+    border-radius: 16px !important;
+    border: 1px solid #334155 !important;
+    background: #0f172a !important;
+}
+
+.modal-header {
+    padding: 1.2rem 1.5rem !important;
+}
+
+.modal-body {
+    padding: 1.5rem !important;
+}
+
+/* ========== DETALHAMENTO DE OS (TRANSPARÊNCIA) ========== */
+.os-items-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.os-items-table th {
+    text-align: left;
+    padding: 12px;
+    border-bottom: 2px solid #334155;
+    color: #94a3b8;
+}
+
+.os-items-table td {
+    padding: 12px;
+    border-bottom: 1px solid #1e293b;
+}
+
+.os-total-bar {
+    background: #1e3a8a;
+    padding: 15px 20px;
+    border-radius: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 15px;
+}
+
+.os-total-bar .total-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+}
+
+/* ========== ACESSIBILIDADE FLOAT (MINIMALISTA) ========== */
+.accessibility-bar {
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    z-index: 1000;
+}
+
+.accessibility-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #334155;
+    color: #fff;
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+/* ========== CLASSES DE ACESSIBILIDADE ========== */
+body.font-size-large {
+    font-size: 1.15rem !important;
+}
+body.font-size-large .btn, 
+body.font-size-large .input-field,
+body.font-size-large .action-btn {
+    font-size: 1.1rem !important;
+}
+
+body.font-size-xlarge {
+    font-size: 1.3rem !important;
+}
+body.font-size-xlarge .btn, 
+body.font-size-xlarge .input-field,
+body.font-size-xlarge .action-btn {
+    font-size: 1.25rem !important;
+}
+
+/* Floating AI Button Offset */
+#ai-floating-btn {
+    bottom: 140px !important; /* Above accessibility bar */
+}
+
+/* ========== SPLASH SCREEN ANIMATIONS ========== */
+@keyframes loadingProgress {
+    0% { left: -100%; }
+    100% { left: 0%; }
+}
+
+.splash-logo {
+    animation: splashPulse 2s infinite ease-in-out;
+}
+
+@keyframes splashPulse {
+    0%, 100% { transform: scale(1); opacity: 1; filter: drop-shadow(0 0 20px rgba(99, 102, 241, 0.5)); }
+    50% { transform: scale(1.05); opacity: 0.8; filter: drop-shadow(0 0 35px rgba(168, 85, 247, 0.8)); }
+}
+
+.splash-title {
+    animation: speedBlur 1.2s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+.splash-logo {
+    animation: hyperDrive 1.5s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+}
+
+@keyframes speedBlur {
+    0% { 
+        transform: translateX(-100vw) skewX(-30deg);
+        opacity: 0;
+        text-shadow: 100px 0 50px rgba(99, 102, 241, 0.8), 200px 0 100px rgba(168, 85, 247, 0.4);
+    }
+    40% {
+        opacity: 1;
+    }
+    100% { 
+        transform: translateX(0) skewX(0);
+        opacity: 1;
+        text-shadow: 0 0 20px rgba(0,0,0,0.5);
+    }
+}
+
+@keyframes hyperDrive {
+    0% { 
+        transform: scale(0.5) translateZ(-1000px);
+        opacity: 0;
+        filter: blur(20px) brightness(2);
+    }
+    100% { 
+        transform: scale(1) translateZ(0);
+        opacity: 1;
+        filter: blur(0) brightness(1) drop-shadow(0 0 30px rgba(99, 102, 241, 0.8));
+    }
+}
+
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0) translateX(0); }
+    50% { transform: translateY(-20px) translateX(10px); }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes starFly {
+    from { transform: translateZ(0); opacity: 1; }
+    to { transform: translateZ(1000px); opacity: 0; }
+}
+
