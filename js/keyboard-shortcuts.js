@@ -168,14 +168,7 @@ const NaxioKeyboardShortcuts = {
             return;
         }
 
-        // F4 - Buscar Produto (PDV)
-        if (e.key === 'F4') {
-            e.preventDefault();
-            if (typeof Varejo !== 'undefined' && Varejo.openSearchModal) {
-                Varejo.openSearchModal();
-            }
-            return;
-        }
+
 
         // F12 - Finalizar Venda (PDV - equivalente a clicar no botão confirmar pagamento)
         if (e.key === 'F12') {
