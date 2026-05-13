@@ -5,7 +5,7 @@
  * busca inteligente e integração fiscal completa.
  */
 
-const Varejo = {
+var Varejo = window.Varejo = window.Varejo || {
     state: {
         allProductsCache: [],
         currentTabIndex: 0,
@@ -1265,7 +1265,7 @@ console.log("✅ Varejo 5.0 Pronto.");
  * busca inteligente e integração fiscal completa.
  */
 
-const Varejo = {
+var Varejo = window.Varejo = window.Varejo || {
     state: {
         allProductsCache: [],
         currentTabIndex: 0,
