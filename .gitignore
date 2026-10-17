@@ -1,0 +1,16 @@
+node_modules/
+.env
+.env.*
+!.env.example
+*.BAK
+*.bak
+*.ldf
+*.mdf
+*.sqlite
+*.db
+dist/
+build/
+naxio_migracao*
+products_supabase_*.csv
+produto_grade.csv
+*.log
